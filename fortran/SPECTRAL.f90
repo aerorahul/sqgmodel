@@ -33,16 +33,17 @@ MODULE spectral
   real,    parameter :: YL = 2*5.539118         ! y domain length (2*pi, 2*5.539118)
   real,    parameter :: H  = 1.0                ! z domain length (0.01, 0.1, 1.0, 10.0)
 
-  logical, parameter :: hw      = .TRUE.        ! jet on/off (.TRUE./.FALSE.)
-  logical, parameter :: restart = .FALSE.       ! use restart file for ic (.TRUE./.FALSE.)
-  logical, parameter :: grow    = .FALSE.       ! grow a normal mode (.TRUE./.FALSE.)
-  real,    parameter :: amu     = 1.0           ! HW jet parameter (0->1)
-  real,    parameter :: shear   = 1.0           ! shear parameter (1 for HW jet)
-  real,    parameter :: tau     = 20.0*dt       ! diffusion time scale 
-  real,    parameter :: trl     = 15.0          ! jet relaxation parameter [e-folding time] (20.0, 40.0, 1000.0)
-  real,    parameter :: Ross    = 0.0           ! Rossby number (0.0, 0.1)
-  real,    parameter :: gamma   = 0.0           ! Ekman parameter (0.0, 0.075, 0.075*1.5)
-  integer, parameter :: n       = 8             ! diffusion parameter
+  logical, parameter :: hw       = .TRUE.       ! jet on/off (.TRUE./.FALSE.)
+  logical, parameter :: restart  = .FALSE.      ! use restart file for ic (.TRUE./.FALSE.)
+  logical, parameter :: add_pert = .FALSE.      ! add pert. to restart (only when restart is .TRUE. (.TRUE./.FALSE.)
+  logical, parameter :: grow     = .FALSE.      ! grow a normal mode (.TRUE./.FALSE.)
+  real,    parameter :: amu      = 1.0          ! HW jet parameter (0->1)
+  real,    parameter :: shear    = 1.0          ! shear parameter (1 for HW jet)
+  real,    parameter :: tau      = 20.0*dt      ! diffusion time scale 
+  real,    parameter :: trl      = 15.0         ! jet relaxation parameter [e-folding time] (20.0, 40.0, 1000.0)
+  real,    parameter :: Ross     = 0.0          ! Rossby number (0.0, 0.1)
+  real,    parameter :: gamma    = 0.0          ! Ekman parameter (0.0, 0.075, 0.075*1.5)
+  integer, parameter :: n        = 8            ! diffusion parameter
 
   integer,          parameter :: verbose = 2    ! 0:no mesgs; 1:imp only; 2:all
   character(len=2), parameter :: path    = './' ! file location

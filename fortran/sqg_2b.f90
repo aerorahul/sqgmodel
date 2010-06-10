@@ -36,8 +36,8 @@ SUBROUTINE main
   real,    dimension(mmax,nmax) :: thxB,thyB,vB,uB,trxB,tryB
   real,    dimension(mmax,nmax) :: thxT,thyT,vT,uT,trxT,tryT
   ! spectral work arrays
-  real,    dimension(2*kmax,2*lmax) :: thxyB
-  real,    dimension(2*kmax,2*lmax) :: thxyT
+  real,    dimension(2*kmax,2*lmax) :: thxyB,thpxyB
+  real,    dimension(2*kmax,2*lmax) :: thxyT,thpxyT
   real,    dimension(2*kmax,2*lmax) :: trxyB
   real,    dimension(2*kmax,2*lmax) :: trxyT
   ! tendencies
@@ -70,9 +70,14 @@ SUBROUTINE main
   ! initialize diffusion (n,kmax,lmax,tau,dco):
   call diff(dco)
 
-  ! initialize (read from Matlab file or restart file):
+  ! initialize (read from Matlab file or restart file, option to add pert. to restart file):
 	if (restart) then
 		call init_restart(thxyB,thxyT)
+		if (add_pert) then
+			call init(thpxyB,thpxyT)
+			thxyB = thxyB + thpxyB
+			thxyT = thxyT + thpxyT
+		endif
 	else
 		call init(thxyB,thxyT)
 	endif
@@ -765,7 +770,7 @@ SUBROUTINE init_restart(thB,thT)
   USE spectral
   IMPLICIT NONE
 
-  ! Initialize perturbation fields (from restart file).
+  ! Initialize theta fields (from restart file).
 
   real, intent(out), dimension(2*kmax,2*lmax) :: thB,thT
 	integer :: twokmax, twolmax
@@ -803,7 +808,7 @@ SUBROUTINE init_tracer(trB,trT)
   USE spectral
   IMPLICIT NONE
 
-  ! Initialize tracer fields (from matlab file).
+  ! Initialize tracer fields
 
   real, intent(out), dimension(2*kmax,2*lmax) :: trB,trT
 	integer :: twokmax, twolmax
@@ -1637,8 +1642,8 @@ REAL FUNCTION HW_theta(y,z)
   real y,yp,z
   real amp,hiccup
 
-  amp = 1.5; ! control jet strength
-  hiccup = 0.75;
+  amp = 1.00;    ! control jet strength (GJH's value 1.50)
+  hiccup = 1.00; !                      (GJH's value 0.75)
   yp = y - (0.5*(YL - hwp))
   if (yp .lt. 0. .and. amu .ne. 0) yp = 0
   if (yp .gt. hwp .and. amu .ne. 0) yp = hwp
