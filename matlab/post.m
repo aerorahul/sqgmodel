@@ -57,18 +57,16 @@ switch go
 		if (go==0)
 			head = 1; 
 			fname = strcat('smat.',fsuf);
-%			fid  = fopen('smat.dat');
 		elseif (go==-100)
 			head = 1; 
-%			fname = strcat('smat_B.',fsuf);
-			fname = strcat([pth '/smat_B.'],fsuf);
-%			fid  = fopen('smat_B.dat');
-			disp('Reading smat_B.dat... ')
+			fname = strcat([pth '/smat.'],fsuf);
+			varname = 'thetaB';
+			disp('Reading smat.nc ... ')
 		elseif (go==100)
 			head = 1; 
-			fname = strcat([pth '/smat_T.'],fsuf);
-%			fid  = fopen('smat_T.dat');
-			disp('Reading smat_T.dat... ')
+			fname = strcat([pth '/smat.'],fsuf);
+			varname = 'thetaT';
+			disp('Reading smat.nc ... ')
 		elseif (go==1)
 %		  flen = 24; % length of filenames
 		  flen = 10; % length of filenames
@@ -102,14 +100,13 @@ switch go
 		  disp(' Reading data from netCDF...')
 		  nc = netcdf(fname);
 		  timevar=nc{'time'}(:); 
-		  avar=nc{'theta'}(:);
-		  domvar=nc{'domain'}(:);
+		  avar=nc{char(varname)}(:);
 		  Nt=size(avar,1);
-		  H=size(avar,2);
-		  Ny=size(avar,3);
-		  Nx=size(avar,4);
-		  Lx=domvar(1);
-		  Ly=domvar(2);
+		  Ny=size(avar,2);
+		  Nx=size(avar,3);
+		  Lx=nc.('XL')(1);
+		  Ly=nc.('YL')(1);
+		  H =nc.('H')(1);
 	
 		  disp(' ')
 		  disp(['  [Nx Ny Nt] = ' num2str(Nx) ' , ' ...
