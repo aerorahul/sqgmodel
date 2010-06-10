@@ -6,22 +6,10 @@
 ! $Id$
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
-! This block under version control: DO NO EDIT
-!
-! Date: 2009-05-01 11:00:35 -0700 (Fri, 01 May 2009) 
-! Revision: 45 
-! Author: hakim 
-! Id: sqg_2b.f90 45 2009-05-01 18:00:35Z hakim 
-!
-! new svn version started 12 september 2005 from...
-! sqg-2b.f version 2.7 Tue Sep  6 17:29:41 PDT 2005
+! Fortran90 code for a uniform-PV two-surface QG+1 model in spectral form.
 !
 ! Originators: G. J. Hakim,  University of Washington
 !              D. J. Muraki, Simon Fraser University
-!
-! Fortran90 code for a uniform-PV two-surface QG+1 model in spectral form.
-!
-! Compile: ifort sqg_2b.f90 fft_90.f90 (make 2sqg)
 !
 ! sQG dynamics are recovered for: Ross=0.0, H-->\infty
 !  2D dynamics are recovered for: Ross=0.0, H-->0; \theta->\theta*H
@@ -42,118 +30,99 @@ SUBROUTINE main
   IMPLICIT NONE
 
   ! spectral values
-  complex, dimension(2*kmax,2*lmax) :: tspB,toldB,sspB,tbB,tbT
-  complex, dimension(2*kmax,2*lmax) :: tspT,toldT,sspT,sbold,sB
+  complex, dimension(2*kmax,2*lmax) :: thspB,thbB
+  complex, dimension(2*kmax,2*lmax) :: thspT,thbT
+  complex, dimension(2*kmax,2*lmax) :: sbold,sB
   ! grid point values
-  real, dimension(mmax,nmax) :: txB,tyB,vB,uB
-  real, dimension(mmax,nmax) :: txT,tyT,vT,uT
+  real,    dimension(mmax,nmax) :: thxB,thyB,vB,uB
+  real,    dimension(mmax,nmax) :: thxT,thyT,vT,uT
   ! spectral work arrays
-  real, dimension(2*kmax,2*lmax) :: oxyB,oxyT
+  real,    dimension(2*kmax,2*lmax) :: thxyB,thxyT
   ! tendencies
-  real, dimension(mmax,nmax) :: ttB,ttT,lap,blank,hx,hy,hu,hv 
-  complex, dimension(mmax,nmax) :: ttspB,ttspT
+  real,    dimension(mmax,nmax) :: tthB,tthT,lap,blank,hx,hy,hu,hv 
+  complex, dimension(mmax,nmax) :: tthspB,tthspT
   ! basic state
-  real, dimension(mmax,nmax) :: ulinB,ulinT,tbyB,tbyT
+  real,    dimension(mmax,nmax) :: ulinB,ulinT,thbyB,thbyT
   ! misc
-  real dx,dx2,dy,dy2,x,asx,asy,asig,rr,ctemp,rtemp,ak,bl,dco,btc
-  real hamp,amp,ran1,noise,time,cxB,cyB,cxT,cyT,lam
-  integer i,j,k,l,irec,irecl,LL,MM,idu,itime,kk,iseed
-  logical first,bot,top
-
-  ! Pertaining to netCDF files
-  logical head
-  integer cdfid(2)
-  character(len=64) cdf_file(2) 
+  real    :: dx,dx2,dy,dy2,x,asx,asy,asig,rr,ctemp,rtemp,ak,bl,dco,btc
+  real    :: hamp,amp,ran1,noise,time,cxB,cyB,cxT,cyT,lam
+  integer :: i,j,k,l,irec,irecl,LL,MM,idu,itime,kk,iseed
+  logical :: first,bot,top
+  ! output
+  character(len=64) :: smatfile, finalfile
 
 !!!!!!!!!!!!!!!!!!!!!!!!
 ! Start of executable: !
 !!!!!!!!!!!!!!!!!!!!!!!!
 
+  if (verbose .gt. 0) print *,'Running with Rossby number: ', Ross
+
   blank = 0.
 
   ! initialize diffusion (n,kmax,lmax,tau,dco):
-  call diff(dco); ! dco = 0.
-  ! dco = 2.2204460E-16 ! fixed across all resolution
+  call diff(dco)
 
-  if (verbose .gt. 0) print *,'Running with Rossby number: ',Ross
+  ! initialize (read from Matlab file or restart file):
+	if (restart) then
+		call init_restart(thxyB,thxyT)
+	else
+		call init(thxyB,thxyT)
+	endif
 
-! netCDF file output
-  if(cdf) then
-      if (verbose .gt. 0) print *, '...writing to netCDF files'
-      
-      head=.TRUE.
-      cdf_file(1)= path//'smat_B.nc'; cdf_file(2)= path//'smat_T.nc'
-      
-      call cdf_dump(cdf_file(1),head,oxyB,0)
-      call cdf_dump(cdf_file(2),head,oxyT,0)
-  else
-     if (verbose .gt. 0) print *, '...writing to ASCII files'
-
-      ! matlab output file ([Nx XL YL Ross n tau ; Ny ntims iplot dt]):
-      open(12,file=path//'smat_B.dat') 
-      write(12,'(2i5,f16.8)') 2*kmax, 2*lmax, H
-      write(12,'(3f16.8)') XL, YL, Ross
-      write(12,'(i5,f16.8)') n, tau
-      write(12,'(i6,i8,f16.8)') ntims, iplot, dt  
-      ! matlab output file ([Nx XL YL Ross n tau ; Ny ntims iplot dt]):
-      open(13,file=path//'smat_T.dat') 
-      write(13,'(2i5,f16.8)') 2*kmax, 2*lmax, H
-      write(13,'(3f16.8)') XL, YL, Ross
-      write(13,'(i5,f16.8)') n, tau
-      write(13,'(i6,i8,f16.8)') ntims, iplot, dt  
-  endif
-
-  ! initialize (read from Matlab file):
-  call init(oxyB,oxyT)
-  !oxyB = 0.; 
-  !oxyT = 0. ! override
+  if (verbose .gt. 0) print *,'...writing to netCDF files'
+	smatfile = trim(adjustl(path) // "smat.nc")
+  call cdf_dump(smatfile,0,thxyB,thxyT)
 
   ! advection flags
   top = .TRUE.; bot = .TRUE.
-
- ! if (maxval(abs(oxyT)) .lt. 1.e-5) top = .FALSE.
- ! if (maxval(abs(oxyB)) .lt. 1.e-5) bot = .FALSE.
+ ! if (maxval(abs(thxyT)) .lt. 1.e-5) top = .FALSE.
+ ! if (maxval(abs(thxyB)) .lt. 1.e-5) bot = .FALSE.
   if (model .eq. 2) then ! tropo sQG
      top = .TRUE.; bot = .FALSE.
   elseif (model .eq. 3 .or. model .eq. 0) then ! surface sQG
      top = .FALSE.; bot = .TRUE.
-  elseif (model .eq. 4) then ! tropo HsQG
+  elseif (model .eq. 4) then                   ! tropo HsQG
      top = .TRUE.; bot = .FALSE.
   endif
 
-  if (verbose .gt. 0) print*,'max BOTTOM initial value=',maxval(abs(oxyB)),bot
-  if (verbose .gt. 0) print*,'max TOP initial value=',maxval(abs(oxyT)),top
-  ! map into spectral space at the same resolution:
-  call xy_to_sp(cmplx(oxyB,0.),tspB,2*kmax,2*lmax,kmax,lmax)
-  call xy_to_sp(cmplx(oxyT,0.),tspT,2*kmax,2*lmax,kmax,lmax)
+  if (verbose .gt. 0) print*,'max BOTTOM initial value=',maxval(abs(thxyB)),bot
+  if (verbose .gt. 0) print*,'max TOPPOM initial value=',maxval(abs(thxyT)),top
 
-  ! zero k = 1
-  !      tspB(2,:) = 0.; tspB(2*kmax,:) = 0.
-  !      tspT(2,:) = 0.; tspT(2*kmax,:) = 0.
+	! map into spectral space at the same resolution:
+  call xy_to_sp(cmplx(thxyB,0.),thspB,2*kmax,2*lmax,kmax,lmax)
+  call xy_to_sp(cmplx(thxyT,0.),thspT,2*kmax,2*lmax,kmax,lmax)
+
+  ! option to zero k = 1 modes
+  !thspB(2,:) = 0.; thspB(2*kmax,:) = 0.
+  !thspT(2,:) = 0.; thspT(2*kmax,:) = 0.
 
   ! init jet
   if (hw) then 
-     call init_jet(tbB,tbT,tbyB,tbyT,ulinB,ulinT,lam)
-     ulinB = ulinB + 0; ulinT = ulinT - 0*H*lam! barotropic wind (Ross = 0!)
+     call init_jet(thbB,thbT,thbyB,thbyT,ulinB,ulinT,lam)
+     ulinB = ulinB + 0; ulinT = ulinT - 0*H*lam     ! barotropic wind (Ross = 0!)
   else
-     tbB = 0;tbT = 0;tbyB=0.;tbyT=0.;ulinB=0.;ulinT=0.;lam=0.
+     thbB = 0;thbT = 0;thbyB=0.;thbyT=0.;ulinB=0.;ulinT=0.;lam=0.
   endif
-  irec = 0; first = .TRUE.
+
+	! write basic state to disk (linear shear:  ON : 1, OFF : 0)
+  call cdf_dump(trim(adjustl(path) // "base.nc"),0,thbB,thbT)
+  call dump(thbB,thbT,1,lam,1,trim(adjustl(path) // 'base.nc'))
+	
+	irec = 0; first = .TRUE.
   if (verbose .gt. 1) print*,'lam = ',lam
   if (verbose .gt. 1) print*,'extrema ulinT = ',maxval(ulinT),minval(ulinT)
 
-  open(21,file=path//'mean.dat',status='replace')
+  open(21,file = trim(adjustl(path) // 'mean.dat'),status='replace')
   write(21,*) 'Mean theta, time:'; close(21)
 
-! initialize terrain:
+  ! initialize terrain:
   hamp = 0.6
   hu = 0.; hv = 0.; hx = 0.; hy = 0.
   if (verbose .gt. 1)   print*,'iterr = ',iterr
   if (iterr .and. Ross .eq. 0) then 
-     ! initialize terrain
      call terrain(hamp,hx,hy,hu,hv)
-     call invert(tspB,0*tspT,txB,txT,tyB,tyT,vB,vT,uB,uT,tbB,tbT, &
-          &        tbyB,tbyT,ulinB,ulinT,first, &
+     call invert(thspB,0*thspT,thxB,thxT,thyB,thyT,vB,vT,uB,uT,thbB,thbT, &
+          &        thbyB,thbyT,ulinB,ulinT,first, &
           &        .TRUE.,.TRUE.,0*lam,sB,sbold,lap)
      hu = uT; hv = vT
      if (verbose .gt. 1) print*,'extrema hx = ',maxval(hx),minval(hx)
@@ -167,93 +136,82 @@ SUBROUTINE main
 !!!!!!!!!!!!!!!!!!!!
   do itime = 1, ntims
 
-! option to zero l = 0 modes, which are nonlinear solutions
-!     tspB(:,1) = 0; tspT(:,1) = 0;
+		! option to zero l = 0 modes, which are nonlinear solutions
+		!thspB(:,1) = 0; thspT(:,1) = 0;
+		
+    time= real(itime-1)*dt
+    if (mod((itime-1),imean) .eq. 0) then
+      open(21,file=path//'mean.dat',position='append')
+      if (verbose .gt. 0) write(6,*) '...writing to mean.dat'
+      write(21,*)  real(thspB(1,1)),real(thspT(1,1))
+      write(21,*) time
+      close(21)
+    endif
 
-     time= real(itime-1)*dt
-     if (mod((itime-1),imean) .eq. 0) then
-        open(21,file=path//'mean.dat',position='append')
-        if (verbose .gt. 0) write(6,*) '...writing to mean.dat'
-        write(21,*)  real(tspB(1,1)),real(tspT(1,1))
-        write(21,*) time
-        close(21)
-     endif
+    ! this is for growing the most unstable mode
+    if (grow .and. cyT .gt. .001) then ! rescale 
+      thspB = thspB/2.; thspT = thspT/2.
+      cyT = 0.
+      if (verbose .gt. 1) print*,'RESCALING'
+    endif
 
-     ! this is for growing the most unstable mode
-     if (grow .and. cyT .gt. .001) then ! rescale 
-        tspB = tspB/2.; tspT = tspT/2.
-        cyT = 0.
-        if (verbose .gt. 1) print*,'RESCALING'
-     endif
+    ! save old streamfunction for Ekman calculation.
+    sbold = sB; if (first) sbold = 0.
 
-     ! save old streamfunction for Ekman calculation.
-     sbold = sB; if (first) sbold = 0.
+    ! Invert theta for streamfunction; compute gradients for advection:
+    call invert(thspB,thspT,thxB,thxT,thyB,thyT,vB,vT,uB,uT,thbB,thbT,thbyB,thbyT,ulinB,ulinT,first,bot,top,lam,sB,sbold,lap)
+     
+		! option to compute potential enstrophy norm and growth rate:
+		if (inorm) call norm(thspB,thspT,itime)
 
-     ! Invert theta for streamfunction; compute gradients for advection:
-     call invert(tspB,tspT,txB,txT,tyB,tyT,vB,vT,uB,uT,tbB,tbT,tbyB,tbyT,ulinB,ulinT,first,bot,top,lam,sB,sbold,lap)
-     ! option to compute potential enstrophy norm and growth rate:
-     ! call norm(tspB,tspT,itime)
+    ! write data to da file for plots (last entry for linear field +):
+    if (mod((itime-1),iplot) .eq. 0) then
+      if (hw) then ! add basic state to output
+        call dump(thspB+thbB,thspT+thbT,1,lam,itime,smatfile)
+      else ! no basic state
+        call dump(thspB,thspT,0,lam,itime,smatfile)
+      endif
+    endif
 
-     ! write data to da file for plots (last entry for linear field +):
-     if (mod((itime-1),iplot) .eq. 0) then
-        if (hw) then ! add basic state to output
-           call dump(tspB+tbB,tspT+tbT,1,lam,itime,cdf_file,cdfid)
-        else ! no basic state
-           call dump(tspB,tspT,0,lam,itime,cdf_file,cdfid)
-        endif
-     endif
+    ! spectral advection:
+    if (bot) call advect(uB,vB,thxB,thyB,thbyB,hx,hy,ulinB,tthB,lam,lap)
+    if (top) call advect(uT+hu,vT+hv,thxT,thyT,thbyT,blank,blank,ulinT,tthT,lam,blank)
 
-     ! spectral advection:
-     if (bot) call advect(uB,vB,txB,tyB,tbyB,hx,hy,ulinB,ttB,lam,lap)
-     if (top) call advect(uT+hu,vT+hv,txT,tyT,tbyT,blank,blank,ulinT,ttT,lam,blank)
+    ! Write Courant numbers to stdout
+    if (mod((itime-1),10) .eq. 0) then 
+      cxB = maxval(abs(uB+ulinB))*dt/(XL/real(2*kmax))
+      cyB = maxval(abs(vB))*dt/(YL/real(2*lmax))
+      cxT = maxval(abs(uT+ulinT))*dt/(XL/real(2*kmax))
+      cyT = maxval(abs(vT))*dt/(YL/real(2*lmax))
+			write(*,'(A23,F10.3,4F8.3)') 'time,cxB,cyB,cxT,cyT = ', &
+			    &            real(itime-1)*dt,cxB,cyB,cxT,cyT
+    endif
 
-     ! Write Courant numbers to stdout
-     if (mod((itime-1),10) .eq. 0) then 
-        cxB = maxval(abs(uB+ulinB))*dt/(XL/real(2*kmax))
-        cyB = maxval(abs(vB))*dt/(YL/real(2*lmax))
-        cxT = maxval(abs(uT+ulinT))*dt/(XL/real(2*kmax))
-        cyT = maxval(abs(vT))*dt/(YL/real(2*lmax))
-        write(*,'(A13,F10.3,4F8.3)') 'time,cx,cy = ', real(itime-1)*dt, &
-             &           cxB,cyB,cxT,cyT
-     endif
+    ! FFT back to spectral space:
+    if (bot) then 
+      tthspB = cmplx(tthB,0.); call ft_2d(tthspB,mmax,nmax,-1)
+    endif
+    if (top) then 
+      tthspT = cmplx(tthT,0.); call ft_2d(tthspT,mmax,nmax,-1)
+    endif
 
-     ! FFT back to spectral space:
-     if (bot) then 
-        ttspB = cmplx(ttB,0.); call ft_2d(ttspB,mmax,nmax,-1)
-     endif
-     if (top) then 
-        ttspT = cmplx(ttT,0.); call ft_2d(ttspT,mmax,nmax,-1)
-     endif
+    ! advance one time step with explicit (hyper-)diffusion:
+    if (bot) call tadvB(thspB,tthspB,dco,first)
+    if (top) call tadvT(thspT,tthspT,dco,first)
 
-     ! advance one time step with explicit (hyper-)diffusion:
-     if (bot) call tadvB(tspB,ttspB,dco,first)
-     if (top) call tadvT(tspT,ttspT,dco,first) 
-     first = .FALSE.
-     tspB(kmax,:) = 0.; tspB(lmax,:) = 0.
+    thspB(kmax,:) = 0.; thspB(lmax,:) = 0.
+    
+		first = .FALSE.
+
   end do ! itime
-
 !!!!!!!!!!!!!!!!!!
 ! END: Time loop !
 !!!!!!!!!!!!!!!!!!
 
-  close(12); close(13)
-
-  ! write final time to disk for future restart:
-  irecl = 2*kmax*2*lmax*32
-  open(8,file=path//'final+1.dat',access='direct', &
-       &     form='unformatted', recl = irecl,status='unknown')
-  call sp_to_xy(tspB,oxyB,kmax,lmax,2*kmax,2*lmax)
-  call sp_to_xy(tspT,oxyT,kmax,lmax,2*kmax,2*lmax)
-  write(8,rec=1) oxyB
-  write(8,rec=2) oxyT
-
-  close(8)
-
-  !      open(9,file=path//'linear+1.dat',status='unknown')
-  !      write(9,*) btc
-  !      do j=1,nmax; write(9,*) tbby(j),ulin(j); enddo
-  !      do j=1,2*lmax; write(9,*) tbb(j); enddo
-  !      close(9)
+  ! write (final + 1) time to disk for future restart:
+	finalfile = trim(adjustl(path) // "final+1.nc")
+  call cdf_dump(finalfile,0,thxyB,thxyT)
+  call dump(thspB,thspT,0,lam,1,finalfile)
 
 end SUBROUTINE main
 
@@ -262,26 +220,26 @@ end SUBROUTINE main
 !!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE invert(itspB,itspT,txBr,txTr,tyBr,tyTr,vBr,vTr,uBr,uTr, &
-     &    tbB,tbT,tbyB,tbyT,ulinB,ulinT,first,bot,top,lam,sB,sold,sblre)
+SUBROUTINE invert(ithspB,ithspT,thxBr,thxTr,thyBr,thyTr,vBr,vTr,uBr,uTr, &
+     &    thbB,thbT,thbyB,thbyT,ulinB,ulinT,first,bot,top,lam,sB,sold,sblre)
 
   USE spectral
   IMPLICIT NONE
 
   ! Invert PV and transform to a larger grid for de-aliasing.
 
-  complex, intent(in), dimension(2*kmax,2*lmax) :: itspB,itspT, &
-       &                                               tbB,tbT,sold
+  complex, intent(in), dimension(2*kmax,2*lmax) :: ithspB,ithspT, &
+       &                                               thbB,thbT,sold
   complex, intent(out), dimension(2*kmax,2*lmax) :: sB
   real, intent(in) :: lam
-  real, intent(in), dimension(mmax,nmax) :: tbyB,tbyT,ulinB,ulinT
+  real, intent(in), dimension(mmax,nmax) :: thbyB,thbyT,ulinB,ulinT
   logical, intent(in) :: first,bot,top
-  complex, dimension(mmax,nmax) :: txB,txT,tyB,tyT, &
+  complex, dimension(mmax,nmax) :: thxB,thxT,thyB,thyT, &
        &                                 uB,uT,vB,vT,copy
-  real, intent(out), dimension(mmax,nmax) :: txBr,txTr,tyBr,tyTr, &
+  real, intent(out), dimension(mmax,nmax) :: thxBr,thxTr,thyBr,thyTr, &
        &                                           uBr,uTr,vBr,vTr,sblre
 
-  complex, dimension(2*kmax,2*lmax) :: tspB,tspT,temps
+  complex, dimension(2*kmax,2*lmax) :: thspB,thspT,temps
   complex, dimension(mmax,nmax) :: szspB,szspT,szzspB,szzspT, &
        &                                 u1B,v1B,u1T,v1T,temp
 
@@ -290,7 +248,7 @@ SUBROUTINE invert(itspB,itspT,txBr,txTr,tyBr,tyTr,vBr,vTr,uBr,uTr, &
        &                                     htempT,tempxyB,tempxyT
 
   complex,dimension(2*kmax,2*lmax),save:: dx,dy,dz,dzo,iz,izo,dzi,Id
-  real, dimension(mmax,nmax) :: tx,ty,u,v
+  real, dimension(mmax,nmax) :: thx,thy,u,v
   integer, save :: pf,gf,bf
   integer :: i,j,k,l
   logical, save :: correct
@@ -313,45 +271,45 @@ SUBROUTINE invert(itspB,itspT,txBr,txTr,tyBr,tyTr,vBr,vTr,uBr,uTr, &
      !         pf = 1; gf = 0; bf = -1 ! no divergent correction
   endif
 
-  tspB = itspB; tspT = itspT ! local copies of spectral boundary theta
+  thspB = ithspB; thspT = ithspT ! local copies of spectral boundary theta
 !!!!!!!!!!!!!!!!!!!!!!!!!!! Grad Theta !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  txT = 0.; tyT = 0.; vT = 0.; uT = 0.
-  txB = 0.; tyB = 0.; vB = 0.; uB = 0.
+  thxT = 0.; thyT = 0.; vT = 0.; uT = 0.
+  thxB = 0.; thyB = 0.; vB = 0.; uB = 0.
 
-  call d_s2b(tspB,txB,1,dx) ! x derivative: small to big domain.
-  call d_s2b(tspB,tyB,1,dy) ! y derivative: small to big domain.
-  call d_s2b(tspT,txT,1,dx) ! x derivative: small to big domain.
-  call d_s2b(tspT,tyT,1,dy) ! y derivative: small to big domain.
+  call d_s2b(thspB,thxB,1,dx) ! x derivative: small to big domain.
+  call d_s2b(thspB,thyB,1,dy) ! y derivative: small to big domain.
+  call d_s2b(thspT,thxT,1,dx) ! x derivative: small to big domain.
+  call d_s2b(thspT,thyT,1,dy) ! y derivative: small to big domain.
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!! sQG Bottom !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (bot .or. correct) then ! velocity contribution from lower boundary
-     call d_b2b(txB,vB,1,-iz) 
-     call d_b2b(-tyB,uB,1,-iz)
+     call d_b2b(thxB,vB,1,-iz) 
+     call d_b2b(-thyB,uB,1,-iz)
   endif
 !!!!!!!!!!!!!!!!!!!!!!!!!!! sQG Toppom !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (top .or. correct) then ! velocity contribution from upper boundary
-     call d_b2b(txT,vT,1,iz) ! z integral: big to big domain.
-     call d_b2b(-tyT,uT,1,iz) ! z integral: big to big domain.
+     call d_b2b(thxT,vT,1,iz) ! z integral: big to big domain.
+     call d_b2b(-thyT,uT,1,iz) ! z integral: big to big domain.
   endif
 !!!!!!!!!!!!!!!!!!!!!!!! sQG Cross Boundary !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (bot .and. top .or. correct) then! lower velocity from upper boundary
-     call d_b2b(txT,temp,1,izo);  vB = vB + temp;
-     call d_b2b(-tyT,temp,1,izo); uB = uB + temp;
+     call d_b2b(thxT,temp,1,izo);  vB = vB + temp;
+     call d_b2b(-thyT,temp,1,izo); uB = uB + temp;
   endif
   if (bot .and. top .or. correct) then! upper velocity from lower boundary
-     call d_b2b(txB,temp,1,-izo);  vT = vT + temp;
-     call d_b2b(-tyB,temp,1,-izo); uT = uT + temp;
+     call d_b2b(thxB,temp,1,-izo);  vT = vT + temp;
+     call d_b2b(-thyB,temp,1,-izo); uT = uT + temp;
   endif
   ! FFT back to xy grid.
   if (bot .or. correct) then 
-     call ft_2d(txB,mmax,nmax,1) ! t_x
+     call ft_2d(thxB,mmax,nmax,1) ! t_x
      call ft_2d(vB,mmax,nmax,1) ! v0
      call ft_2d(uB,mmax,nmax,1) ! u0
-     call ft_2d(tyB,mmax,nmax,1) ! t_y
+     call ft_2d(thyB,mmax,nmax,1) ! t_y
   endif
   if (top .or. correct) then 
-     call ft_2d(txT,mmax,nmax,1) ! t_x
-     call ft_2d(tyT,mmax,nmax,1) ! t_y
+     call ft_2d(thxT,mmax,nmax,1) ! t_x
+     call ft_2d(thyT,mmax,nmax,1) ! t_y
      call ft_2d(vT,mmax,nmax,1) ! v0
      call ft_2d(uT,mmax,nmax,1) ! u0         
   endif
@@ -365,19 +323,19 @@ SUBROUTINE invert(itspB,itspT,txBr,txTr,tyBr,tyTr,vBr,vTr,uBr,uTr, &
 
      ! basic-state terms: add periodic parts here; linear parts are handled last.
      if (hw) then 
-        tspB = tspB + tbB; tspT = tspT + tbT
+        thspB = thspB + thbB; thspT = thspT + thbT
         uB = uB + ulinB; uT = uT + ulinT - (lam*H) ! don't double count!
-        tyB = tyB + tbyB; tyT = tyT + tbyT
+        thyB = thyB + thbyB; thyT = thyT + thbyT
      endif
 
      ! big-grid theta (szsp) and theta_z (szzsp):
-     call d_s2b(tspB,szspB,1,Id);  call ft_2d(szspB,mmax,nmax,1)
-     call d_s2b(tspT,szspT,1,Id);  call ft_2d(szspT,mmax,nmax,1)
+     call d_s2b(thspB,szspB,1,Id);  call ft_2d(szspB,mmax,nmax,1)
+     call d_s2b(thspT,szspT,1,Id);  call ft_2d(szspT,mmax,nmax,1)
 
-     call d_s2b(tspB,szzspB,1,-dz); call d_s2b(tspT,temp,1,dzo); 
+     call d_s2b(thspB,szzspB,1,-dz); call d_s2b(thspT,temp,1,dzo); 
      szzspB = szzspB + temp
      call ft_2d(szzspB,mmax,nmax,1)
-     call d_s2b(tspT,szzspT,1,dz); call d_s2b(tspB,temp,1,-dzo); 
+     call d_s2b(thspT,szzspT,1,dz); call d_s2b(thspB,temp,1,-dzo); 
      szzspT = szzspT + temp
      call ft_2d(szzspT,mmax,nmax,1)
 
@@ -440,36 +398,36 @@ SUBROUTINE invert(itspB,itspT,txBr,txTr,tyBr,tyTr,vBr,vTr,uBr,uTr, &
      !        Dealiasing is crucial here (no shortcuts, DJM!)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
      ! u1 bottom
-     temp = (-2.*tyB*szspB) + (uB*szzspB)
+     temp = (-2.*thyB*szspB) + (uB*szzspB)
      call xy_to_sp(temp,tempspB,mmax,nmax,kmax,lmax)
      u1spB = u1spB + tempspB !add (-P1_y - F1_z)
      ! u1 toppom
-     temp = (-2.*tyT*szspT) + (uT*szzspT)
+     temp = (-2.*thyT*szspT) + (uT*szzspT)
      call xy_to_sp(temp,tempspT,mmax,nmax,kmax,lmax)
      u1spT = u1spT + tempspT !add (-P1_y - F1_z)
      ! v1 bottom
-     temp = (2.*txB*szspB) + (vB*szzspB)
+     temp = (2.*thxB*szspB) + (vB*szzspB)
      call xy_to_sp(temp,tempspB,mmax,nmax,kmax,lmax)
      v1spB = v1spB + tempspB !add (P1_x - G1_z)
      ! v1 toppom
-     temp = (2.*txT*szspT) + (vT*szzspT)
+     temp = (2.*thxT*szspT) + (vT*szzspT)
      call xy_to_sp(temp,tempspT,mmax,nmax,kmax,lmax)
      v1spT = v1spT + tempspT !add (P1_x - G1_z)
 
      ! linear-shear contributions (note: recycling var names)
      if (hw) then 
-        call d_s2s(tspB,tempspB,1,-izo*dx*dx) !phi_xx^B
-        call d_s2s(tspT,tempspT,1,izo*dx*dx) !phi_xx^T
-        call d_s2s(tspB,htempB,1,-izo*dy*dy)  !phi_yy^B
-        call d_s2s(tspT,htempT,1,izo*dy*dy)  !phi_yy^T
-        call d_s2s(tspB,tempxyB,1,-izo*dx*dy) !phi_xy^B
-        call d_s2s(tspT,tempxyT,1,izo*dx*dy) !phi_xy^T
+        call d_s2s(thspB,tempspB,1,-izo*dx*dx) !phi_xx^B
+        call d_s2s(thspT,tempspT,1,izo*dx*dx) !phi_xx^T
+        call d_s2s(thspB,htempB,1,-izo*dy*dy)  !phi_yy^B
+        call d_s2s(thspT,htempT,1,izo*dy*dy)  !phi_yy^T
+        call d_s2s(thspB,tempxyB,1,-izo*dx*dy) !phi_xy^B
+        call d_s2s(thspT,tempxyT,1,izo*dx*dy) !phi_xy^T
 
-        !         u1spB = u1spB - lam*(H*(htempT - tempspT) + (tspT - tspB) )
-        !         u1spT = u1spT + lam*(H*(htempB - tempspB) + (tspT - tspB) )
+        !         u1spB = u1spB - lam*(H*(htempT - tempspT) + (thspT - thspB) )
+        !         u1spT = u1spT + lam*(H*(htempB - tempspB) + (thspT - thspB) )
         ! as per DM email 12/24/02:
-        u1spB = u1spB - lam*(H*(htempT - tempspT) - tspB )
-        u1spT = u1spT + lam*(H*(htempB - tempspB) + tspT )
+        u1spB = u1spB - lam*(H*(htempT - tempspT) - thspB )
+        u1spT = u1spT + lam*(H*(htempB - tempspB) + thspT )
         v1spB = v1spB + lam*2*H*tempxyT
         v1spT = v1spT - lam*2*H*tempxyB
      endif
@@ -484,24 +442,24 @@ SUBROUTINE invert(itspB,itspT,txBr,txTr,tyBr,tyTr,vBr,vTr,uBr,uTr, &
 
      ! remove periodic base state (added above):
      uB = uB - ulinB; uT = uT - ulinT + (lam*H)
-     tyB = tyB - tbyB; tyT = tyT - tbyT
+     thyB = thyB - thbyB; thyT = thyT - thbyT
   endif ! correct
 
   ! return u = u_0 + Ro * u_1; v = v_0 + Ro * v_1
   ! (look into using the f90 "transfer" function to return real parts...)
 
-  txBr = real(txB); tyBr = real(tyB);
-  txTr = real(txT); tyTr = real(tyT);      
+  thxBr = real(thxB); thyBr = real(thyB);
+  thxTr = real(thxT); thyTr = real(thyT);      
   uBr = real(uB + Ross*u1B); uTr = real(uT + Ross*u1T)
   vBr = real(vB + Ross*v1B); vTr = real(vT + Ross*v1T)
 
   ! Ekman layer calculations (need streamfunction and Laplacian.
   if (gamma .gt. 0) then
      ! reset these since they were changed for next-order calculations
-     tspB = itspB; tspT = itspT ! local copies of spectral boundary theta
+     thspB = ithspB; thspT = ithspT ! local copies of spectral boundary theta
      sb = 0. ! surface O(1) streamfunction
-     call d_s2s(tspB,sB,1,-iz) ! bottom contribution
-     call d_s2s(tspT,temps,1,izo) ! toppom contribution
+     call d_s2s(thspB,sB,1,-iz) ! bottom contribution
+     call d_s2s(thspT,temps,1,izo) ! toppom contribution
      sB = sB + temps;
      ! now compute Laplacian from previous time-step's sB
      temp = 0.
@@ -646,7 +604,7 @@ SUBROUTINE diff(dco)
 end SUBROUTINE diff
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE init(tB,tT)
+SUBROUTINE init(thB,thT)
   !     Originator: G. Hakim, NCAR/MMM
 
   USE spectral
@@ -654,88 +612,105 @@ SUBROUTINE init(tB,tT)
 
   ! Initialize basic state and perturbation fields.
 
-  real, intent(out), dimension(2*kmax,2*lmax) :: tB,tT
-  integer :: i,j,twokmax,twolmax,irecl
-  real :: fac
-  logical, parameter :: matlab = .TRUE. ! matlab input files
+  real, intent(out), dimension(2*kmax,2*lmax) :: thB,thT
+  real    :: fac
+  integer :: twokmax,twolmax
+  integer :: ncid, dimid, varid
 
   if (verbose .gt. 0)  print*,'initializing theta fields...'
-  tB = 0.; tT = 0.
+  thB = 0.; thT = 0.
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!! Bottom !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  open(9,file=path//'th_init_B.dat', status='old')
-  read(9,*) twokmax; read(9,*) twolmax
-  if (grow .or. matlab) then !matlab file
-     do i = 1, 2*kmax; do j=1, 2*lmax
-        read(9,*) tB(i,j)      
-     enddo; enddo
-  else ! fortran file
-     read(9,*) tB
-  endif
-  close(9)
+ 	call check( nf90_open(path//trim('th_init.nc'), NF90_NOWRITE, ncid) )
+	call check( nf90_inq_dimid(ncid, 'nx', dimid) )
+	call check( nf90_inquire_dimension(ncid, dimid, len = twokmax) )
+	call check( nf90_inq_dimid(ncid, 'ny', dimid) )
+	call check( nf90_inquire_dimension(ncid, dimid, len = twolmax) )
+	call check( nf90_inq_varid(ncid, 'thetaB', varid) )
+	call check( nf90_get_var(ncid, varid, thB) )
+	call check( nf90_inq_varid(ncid, 'thetaT', varid) )
+	call check( nf90_get_var(ncid, varid, thT) )
+	call check( nf90_close(ncid) )
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!! Toppom !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  open(9,file=path//'th_init_T.dat', status='old')
-  read(9,*) twokmax; read(9,*) twolmax
   if (twokmax .ne. 2*kmax .and. twolmax .ne. 2*lmax) then  
-     print*,'x and y resolution from th_init_T.dat do not match SPECTRAL.f90!!! ',twokmax,twolmax
-     STOP
+     print*,'x and y resolution from th_init.nc do not match SPECTRAL.f90!!!'
+     print*,'x and y from SPECTRAL.f90 : ', 2*kmax, 2*lmax
+     print*,'x and y from th_init.nc   : ', twokmax,twolmax
+     stop
   endif
-  if (grow .or. matlab) then !matlab file
-     do i = 1, 2*kmax; do j=1, 2*lmax
-        read(9,*) tT(i,j)      
-     enddo; enddo
-  else ! fortran file
-     read(9,*) tT
-  endif
-  close(9)
 
   ! normalize initial amplitude (RMS00)
-  !      fac = .15/maxval(abs(tB)); tB = fac*tB; tT = fac*tT
-  !      tB = .15*tB/maxval(abs(tB)); tT = .15*tT/maxval(abs(tB))
+  !      fac = .15/maxval(abs(thB)); thB = fac*thB; thT = fac*thT
+  !      thB = .15*thB/maxval(abs(thB)); thT = .15*thT/maxval(abs(thB))
 
-  !      tT = -tT
-  !      tB = -tB
-  !      tB = 0.
-  !      tT = 0.
-  !      tT = tT/1000.
-  !      tT = tT/10.
-  !      tB = tB/10.
-
-  ! load from a restart file (will need to save told, told2, eventually)
-  if (restart) then 
-     if (verbose .gt. 1) print*,'!!! USING RESTART FILE !!!'
-     irecl = 2*kmax*2*lmax*32
-     open(9,file=path//'final+1.dat',access='direct', &
-          &        form='unformatted', recl = irecl,status='old')
-     read(9,rec=1) tB
-     read(9,rec=2) tT
-     close(9)
-  endif
+  !      thT = -thT
+  !      thB = -thB
+  !      thB = 0.
+  !      thT = 0.
+  !      thT = thT/1000.
+  !      thT = thT/10.
+  !      thB = thB/10.
 
   return
 end SUBROUTINE init
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE init_jet(tbB,tbT,tbyB,tbyT,ulinB,ulinT,lam)
+SUBROUTINE init_restart(thB,thT)
+  !     Originator: G. Hakim, NCAR/MMM
+
+  USE spectral
+  IMPLICIT NONE
+
+  ! Initialize perturbation fields (from restart file).
+
+  real, intent(out), dimension(2*kmax,2*lmax) :: thB,thT
+	integer :: twokmax, twolmax
+	integer :: ncid, dimid, varid
+
+  if (verbose .gt. 0) print*,'!!! USING RESTART FILE !!!'
+  thB = 0.; thT = 0.
+
+  ! load from a restart file (will need to save told, told2, eventually)
+	call check( nf90_open(trim(path // 'restart.nc'), NF90_NOWRITE, ncid) )
+	call check( nf90_inq_dimid(ncid, 'nx', dimid) )
+	call check( nf90_inquire_dimension(ncid, dimid, len = twokmax) )
+	call check( nf90_inq_dimid(ncid, 'ny', dimid) )
+	call check( nf90_inquire_dimension(ncid, dimid, len = twolmax) )
+	call check( nf90_inq_varid(ncid, 'thetaB', varid) )
+	call check( nf90_get_var(ncid, varid, thB) )
+	call check( nf90_inq_varid(ncid, 'thetaT', varid) )
+	call check( nf90_get_var(ncid, varid, thT) )
+	call check (nf90_close(ncid) )
+
+  if (twokmax .ne. 2*kmax .and. twolmax .ne. 2*lmax) then  
+     print*,'x and y resolution from restart.nc do not match SPECTRAL.f90!!!'
+     print*,'x and y from SPECTRAL.f90 : ', 2*kmax, 2*lmax
+     print*,'x and y from restart.nc   : ', twokmax,twolmax
+     stop
+  endif
+
+  return
+end SUBROUTINE init_restart
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+SUBROUTINE init_jet(thbB,thbT,thbyB,thbyT,ulinB,ulinT,lam)
   !     Originator: G. Hakim, University of Washington
 
   USE spectral
   IMPLICIT NONE
 
   ! Initialize basic state jet.
-  ! tbB = periodic basic state theta; bottom boundary (spectral grid).
-  ! tbT = periodic basic state theta; top boundary (spectral grid).
-  ! tbyB = y derivative of periodic basic state theta; bottom boundary (grid point).
-  ! tbyT = y derivative of periodic basic state theta; top boundary (grid point).
+  ! thbB = periodic basic state theta; bottom boundary (spectral grid).
+  ! thbT = periodic basic state theta; top boundary (spectral grid).
+  ! thbyB = y derivative of periodic basic state theta; bottom boundary (grid point).
+  ! thbyT = y derivative of periodic basic state theta; top boundary (grid point).
   ! ulinB = basic state wind; bottom boundary (grid point).
   ! ulinT = basic state wind; top boundary (grid point).
 
-  complex, intent(out), dimension(2*kmax,2*lmax) :: tbB,tbT
-  real, intent(out), dimension(mmax,nmax) :: tbyB,tbyT,ulinB,ulinT
-  complex, dimension(mmax,nmax) :: tyB,tyT,uB,uT,temp
+  complex, intent(out), dimension(2*kmax,2*lmax) :: thbB,thbT
+  real, intent(out), dimension(mmax,nmax) :: thbyB,thbyT,ulinB,ulinT
+  complex, dimension(mmax,nmax) :: thyB,thyT,uB,uT,temp
   real, intent(out) :: lam
-  real, dimension(2*kmax,2*lmax) :: tbxyB,tbxyT
+  real, dimension(2*kmax,2*lmax) :: thbxyB,thbxyT
   real :: HW_ubar,HW_theta,HW_thetay
   real :: y,yp,dyy
   integer :: j,icho
@@ -751,20 +726,20 @@ SUBROUTINE init_jet(tbB,tbT,tbyB,tbyT,ulinB,ulinT,lam)
   dyy = YL/real(2*lmax)
   do j=1, 2*lmax
      y = real(j-1)*dyy; yp = y - (0.5*(YL - hwp))
-     tbxyB(:,j) = HW_theta(y,0.) + lam*yp
-     tbxyT(:,j) = HW_theta(y,H) + lam*yp
-     !         print*,'periodic theta grid point:',y,yp,tbxyT(1,j)
+     thbxyB(:,j) = HW_theta(y,0.) + lam*yp
+     thbxyT(:,j) = HW_theta(y,H) + lam*yp
+     !         print*,'periodic theta grid point:',y,yp,thbxyT(1,j)
   enddo
   ! map into spectral space at the same resolution:
-  call xy_to_sp(cmplx(tbxyB,0.),tbB,2*kmax,2*lmax,kmax,lmax)
-  call xy_to_sp(cmplx(tbxyT,0.),tbT,2*kmax,2*lmax,kmax,lmax)
+  call xy_to_sp(cmplx(thbxyB,0.),thbB,2*kmax,2*lmax,kmax,lmax)
+  call xy_to_sp(cmplx(thbxyT,0.),thbT,2*kmax,2*lmax,kmax,lmax)
 
   ! grid point variables
   dyy = YL/real(nmax)
   do j=1, nmax
      y = real(j-1)*dyy; yp = y - (0.5*(YL - hwp))
-     tbyB(:,j) = HW_thetay(y,0.) + lam
-     tbyT(:,j) = HW_thetay(y,H) + lam
+     thbyB(:,j) = HW_thetay(y,0.) + lam
+     thbyT(:,j) = HW_thetay(y,H) + lam
      ! old U
      !         ulinB(:,j) = HW_ubar(y,0.)
      !         ulinT(:,j) = HW_ubar(y,H)
@@ -773,10 +748,10 @@ SUBROUTINE init_jet(tbB,tbT,tbyB,tbyT,ulinB,ulinT,lam)
   ! new U: solve numerically given theta
   uB = 0.; uT = 0.
   call d_setup(dx,dy,dz,dzo,iz,izo,Id) ! derivative operators
-  call d_s2b(tbB,tyB,1,dy); call d_s2b(tbT,tyT,1,dy)
-  call d_b2b(-tyB,uB,1,-iz); call d_b2b(-tyT,uT,1,iz)
-  call d_b2b(-tyT,temp,1,izo); uB = uB + temp;
-  call d_b2b(-tyB,temp,1,-izo); uT = uT + temp;
+  call d_s2b(thbB,thyB,1,dy); call d_s2b(thbT,thyT,1,dy)
+  call d_b2b(-thyB,uB,1,-iz); call d_b2b(-thyT,uT,1,iz)
+  call d_b2b(-thyT,temp,1,izo); uB = uB + temp;
+  call d_b2b(-thyB,temp,1,-izo); uT = uT + temp;
   call ft_2d(uB,mmax,nmax,1); call ft_2d(uT,mmax,nmax,1)
   ulinB = real(uB); ulinT = real(uT)
   ulinT = ulinT + lam*H
@@ -815,7 +790,7 @@ FUNCTION ran1(idum)
 END FUNCTION ran1
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE dump(tspB,tspT,ilam,lam,it,cdf_file,cdfid)
+SUBROUTINE dump(thspB,thspT,ilam,lam,it,outfile)
   !     Originator: G. Hakim, NCAR/MMM
   !     Modifier  : Rahul Mahajan, UW July 2005. (netcdf output)
 
@@ -823,8 +798,8 @@ SUBROUTINE dump(tspB,tspT,ilam,lam,it,cdf_file,cdfid)
   USE spectral
   IMPLICIT NONE
 
-  complex, dimension(2*kmax,2*lmax) :: tspB,tspT,copy,tbB,tbT
-  real, dimension(2*kmax,2*lmax) :: oxyB,oxyT
+  complex, dimension(2*kmax,2*lmax) :: thspB,thspT,copy,thbB,thbT
+  real, dimension(2*kmax,2*lmax) :: thxyB,thxyT
   real, intent(in) :: lam
   real :: y,yp,dy
   integer :: ilam
@@ -834,18 +809,17 @@ SUBROUTINE dump(tspB,tspT,ilam,lam,it,cdf_file,cdfid)
   character(len=8) :: size
 
 ! Pertaining to netCDF files
-  logical head
-  integer :: it, cdfid(2)
-  character(len=64) cdf_file(2) 
+  integer :: it
+  character(len=64), intent(in) :: outfile
 
 ! set up the format form
   write(size,'(i8)') (2*kmax*2*lmax); size = adjustr(size)
   form = '('//size//'F10.6'//')'!; print*,'FORMAT',form
 
-  copy = tspB
-  call sp_to_xy(copy,oxyB,kmax,lmax,2*kmax,2*lmax)
-  copy = tspT
-  call sp_to_xy(copy,oxyT,kmax,lmax,2*kmax,2*lmax)
+  copy = thspB
+  call sp_to_xy(copy,thxyB,kmax,lmax,2*kmax,2*lmax)
+  copy = thspT
+  call sp_to_xy(copy,thxyT,kmax,lmax,2*kmax,2*lmax)
 
   ! add in linear shear
   if (ilam .eq. 1) then 
@@ -853,38 +827,24 @@ SUBROUTINE dump(tspB,tspT,ilam,lam,it,cdf_file,cdfid)
      do j=1, 2*lmax
 ! fixed 08/10/2005 GJH & RBM
         y = real(j-1)*dy; 
-        oxyB(:,j) = oxyB(:,j) - lam*y
-        oxyT(:,j) = oxyT(:,j) - lam*y
+        thxyB(:,j) = thxyB(:,j) - lam*y
+        thxyT(:,j) = thxyT(:,j) - lam*y
      enddo
   endif
 
   if (verbose .gt. 0) print*,'Writing to disk...'
-
-  if(cdf) then
-     ! write to netCDF files
-     head = .FALSE. 
-     call cdf_dump(cdf_file(1),head,oxyB,it)
-     call cdf_dump(cdf_file(2),head,oxyT,it)
-  else
-     !  write to matlab
-     do i=1,2*kmax
-        do j=1,2*lmax
-           write(12,*) oxyB(i,j)
-           write(13,*) oxyT(i,j)
-        enddo
-     enddo
-  endif
+	call cdf_dump(outfile,it,thxyB,thxyT)
   
   ! write the init files if this is a grow run
   if (grow) then 
      open(31,file=path//'th_init_B.dat') 
      write(31,'(i5)') 2*kmax
      write(31,'(i5)') 2*lmax
-     write(31,*) oxyB; close(31)
+     write(31,*) thxyB; close(31)
      open(31,file=path//'th_init_T.dat') 
      write(31,'(i5)') 2*kmax
      write(31,'(i5)') 2*lmax
-     write(31,*) oxyT; close(31)
+     write(31,*) thxyT; close(31)
   endif
 
   return
@@ -1434,12 +1394,12 @@ end function HW_THETAY
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! hacked from qg code to check mode growth rates
-SUBROUTINE norm(tb,tt,itime)
+SUBROUTINE norm(thB,thT,itime)
   USE spectral
 
   IMPLICIT NONE
 
-  complex, intent(in), dimension(2*kmax,2*lmax) :: tb,tt
+  complex, intent(in), dimension(2*kmax,2*lmax) :: thB,thT
   integer, intent(in) :: itime
   real :: V,ak,bl,Vgr,ttau,cmax
   real, save :: V_old,V_0
@@ -1448,7 +1408,7 @@ SUBROUTINE norm(tb,tt,itime)
   !      logical, parameter :: mesg = .FALSE.
 
   ! enstrophy norm (for normal modes, any norm will do)
-  V = (sum(abs(tb)**2) + sum(abs(tt)**2))
+  V = (sum(abs(thB)**2) + sum(abs(thT)**2))
   V = 0.5*(V**0.5)
 
   ttau = real(itime -5)*dt
@@ -1492,75 +1452,79 @@ REAL FUNCTION ekman(x,y)
 end FUNCTION ekman
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine cdf_dump(output_file,head,a,it)
+subroutine cdf_dump(output_file,it,thB,thT)
   !     Originator: R. Mahajan, University of Washington.
 
   use spectral
-
+  
   implicit none
   
-	include 'netcdf.inc'
+  character(len=64), intent(in) :: output_file
+  integer, intent(in) :: it
+  real, dimension(2*kmax,2*lmax), intent(in) :: thB, thT
+
+  integer :: ncid, vardim(3), varid
+  integer :: k, count(3), start(3), ierr
+  real :: time
   
-  character(len=64) output_file
-  integer nx, ny, cdfid, vardim(4), avar, timevar, domvar, domdim
-  integer it, k, count(4), start(4), ierr
-  real time
-  real, dimension(2*kmax,2*lmax) :: a
-  logical head   ! to write the header/data part of the cdf file
-  
-  !     Main Program starts
-  
-  nx=2*kmax; ny=2*lmax
-  
-  if(head) then
+  if ( it .eq. 0 ) then
      
      !           Create a new NetCDF file
-     cdfid = nccre(output_file, NCCLOB, ierr)
+     call check( nf90_create(output_file, NF90_CLOBBER .or. NF90_64BIT_OFFSET, ncid) )
      
      !           Define dimensions
-     vardim(1) = ncddef(cdfid, 'nx', nx, ierr)
-     vardim(2) = ncddef(cdfid, 'ny', ny, ierr)
-     vardim(3) = ncddef(cdfid, 'nz', 1, ierr)
-     vardim(4) = ncddef(cdfid, 'time', NCUNLIM, ierr)
-     
-     domdim = ncddef(cdfid, 'xy', 2, ierr)
+		 call check( nf90_def_dim(ncid, "nx",   2*kmax,         vardim(1)) )
+		 call check( nf90_def_dim(ncid, "ny",   2*lmax,         vardim(2)) )
+		 call check( nf90_def_dim(ncid, "time", NF90_UNLIMITED, vardim(3)) )
      
      !           Define variables
-     avar = ncvdef(cdfid, 'theta', NCFLOAT, 4, vardim, ierr)
-     timevar = ncvdef(cdfid, 'time', NCFLOAT, 1, vardim(4), ierr)
+		 call check( nf90_def_var(ncid, "time",   NF90_FLOAT, vardim(3), varid) )
+		 call check( nf90_def_var(ncid, "thetaB", NF90_FLOAT, vardim,    varid) )
+		 call check( nf90_put_att(ncid, varid, "description", "bottom potential temperature") )
+		 call check( nf90_def_var(ncid, "thetaT", NF90_FLOAT, vardim,    varid) )
+		 call check( nf90_put_att(ncid, varid, "description", "toppom potential temperature") )
      
-     domvar = ncvdef(cdfid, 'domain', NCFLOAT, 1, domdim, ierr)
-     
-     call ncendf(cdfid, ierr) ! End definitions
-     
-     ! Feed in the dimensions of the domain
-     call ncvpt1(cdfid, domvar, 1, XL, ierr)
-     call ncvpt1(cdfid, domvar, 2, YL, ierr)
-     
+		 call check( nf90_put_att(ncid, NF90_GLOBAL, "model", model) )
+		 call check( nf90_put_att(ncid, NF90_GLOBAL, "ntims", ntims) )
+		 call check( nf90_put_att(ncid, NF90_GLOBAL, "dt", dt)       )
+		 call check( nf90_put_att(ncid, NF90_GLOBAL, "iplot", iplot) )
+		 call check( nf90_put_att(ncid, NF90_GLOBAL, "XL", XL)       )
+		 call check( nf90_put_att(ncid, NF90_GLOBAL, "YL", YL)       )
+		 call check( nf90_put_att(ncid, NF90_GLOBAL, "H", H)         )
+		 call check( nf90_put_att(ncid, NF90_GLOBAL, "Ross", Ross)   )
+		 call check( nf90_put_att(ncid, NF90_GLOBAL, "gamma", gamma) )
+		 call check( nf90_put_att(ncid, NF90_GLOBAL, "n", n)         )
+		 call check( nf90_put_att(ncid, NF90_GLOBAL, "tau", tau)     )
+		 call check( nf90_put_att(ncid, NF90_GLOBAL, "trl", trl)     )
+		 call check( nf90_put_att(ncid, NF90_GLOBAL, "amu", amu)     )
+		 call check( nf90_put_att(ncid, NF90_GLOBAL, "shear", shear) )
+		 
+		 call check( nf90_enddef(ncid) )
+   	 call check( nf90_close(ncid)  )
+
   else 
      
-     ierr = nf_open(output_file, 1, cdfid)
      time = (it-1)*dt
      k = 1 + (it-1)/iplot
      
-     !           Get back variable ID's from the netCDF file
-     timevar = ncvid(cdfid, 'time', ierr) 
-     avar = ncvid(cdfid, 'theta', ierr) 
+     count(1) = 2*kmax;  start(1) = 1
+     count(2) = 2*lmax;  start(2) = 1
+     count(3) = 1;       start(3) = k
      
-     call ncvpt1(cdfid, timevar, k, time, ierr)
-     
-     count(1) = nx;  start(1) = 1
-     count(2) = ny;  start(2) = 1
-     count(3) = 1;   start(3) = 1
-     count(4) = 1;   start(4) = k
-     
-     call ncvpt(cdfid, avar, start, count, a, ierr)
+     !           Open the netCDF file, write variables and close
+     call check( nf90_open(output_file, NF90_WRITE, ncid) )
+		 call check( nf90_inq_varid(ncid, "time",   varid) )
+		 call check( nf90_put_var(ncid, varid, time, (/k/))       )
+		 call check( nf90_inq_varid(ncid, "thetaB", varid) )
+		 call check( nf90_put_var(ncid, varid, thB, start, count) )
+		 call check( nf90_inq_varid(ncid, "thetaT", varid) )
+		 call check( nf90_put_var(ncid, varid, thT, start, count) )
+	   call check( nf90_close(ncid) )
      
   endif
   
-  call ncclos(cdfid,ierr)
-
   return
+
 end subroutine cdf_dump
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1649,7 +1613,27 @@ SUBROUTINE terrain(hamp,hx,hy,hu,hv)
   return
 end SUBROUTINE terrain
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+!   check - subroutine that checks to make sure the output from a 
+!           netCDF call does not have any errors.
+!           If one exists, it will exit the program.
+!
+!    ierr - integer netCDF error code
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+subroutine check(ierr)
 
+use spectral 
+
+integer, intent (in) :: ierr
+
+if (ierr /= nf90_noerr) then
+  print*,'Netcdf error: ', trim( nf90_strerror(ierr) )
+  stop
+end if
+
+end subroutine check
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1700,7 +1684,7 @@ end SUBROUTINE terrain
 ! v.2.5
 ! 17 February 2005
 !
-! 1) new terrain call. new ic2 (v2.0) supplies terrain through oxyB.
+! 1) new terrain call. new ic2 (v2.0) supplies terrain through thxyB.
 !
 ! v.2.6
 ! 14 July 2005
