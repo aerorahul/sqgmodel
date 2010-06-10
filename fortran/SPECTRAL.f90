@@ -22,6 +22,7 @@ MODULE spectral
   logical, parameter :: linear  = .FALSE.       ! flag for linear advection
   logical, parameter :: trop    = .FALSE.       ! flag for tropopause geometry
   logical, parameter :: inorm   = .FALSE.       ! flag for computing norm
+  logical, parameter :: itracer = .FALSE.       ! flag for tracer
 
   real,    parameter :: pi = 4.0*atan(1.0)      ! pi = 3.14159265358979323846264338327950288419 
 
@@ -32,7 +33,7 @@ MODULE spectral
   real,    parameter :: YL = 2*5.539118         ! y domain length (2*pi, 2*5.539118)
   real,    parameter :: H  = 1.0                ! z domain length (0.01, 0.1, 1.0, 10.0)
 
-  logical, parameter :: hw      = .TRUE.        !  jet on/off (.TRUE./.FALSE.)
+  logical, parameter :: hw      = .TRUE.        ! jet on/off (.TRUE./.FALSE.)
   logical, parameter :: restart = .FALSE.       ! use restart file for ic (.TRUE./.FALSE.)
   logical, parameter :: grow    = .FALSE.       ! grow a normal mode (.TRUE./.FALSE.)
   real,    parameter :: amu     = 1.0           ! HW jet parameter (0->1)
