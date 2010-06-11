@@ -28,8 +28,13 @@ clean_on_exit( ) {
 #############################################################
 # define experiment names and run types
 exp_name="shear1.0_amu1.0"
-run_type="truth"
+run_type="control"
 let run_number=1
+let truth_run_number=0
+
+# Ensemble properties
+let Ne=3500  # no. of ensemble members
+let tint=21  # no. of times in each ensemble member
 
 # define local and remote experiment directories 
 dir_expt_src="/home/disk/pvort/rahulm/sqg_experiments"
@@ -38,6 +43,7 @@ dir_expt_run="/home/disk/p/nobackup/rahulm/ALL_ETC/sqg_experiments"
 # define experiment source, run and log directories 
 dir_src=${dir_expt_src}/${exp_name}/${run_type}/src
 dir_run=${dir_expt_run}/${exp_name}/${run_type}/run${run_number}
+dir_run_truth=${dir_expt_run}/${exp_name}/truth/run${truth_run_number}
 
 dir_run_local="/home/`hostname -s`/`whoami`/${exp_name}_${run_type}_run${run_number}"
 if [ -e ${dir_run_local} ]; then
@@ -48,76 +54,73 @@ mkdir -p ${dir_run_local}
 logfile=${dir_run_local}/log_${run_type}_${run_number}
 touch ${logfile}
 
-echo "                                            " >> ${logfile}
+echo "                                                             " >> ${logfile}
 echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
-echo " ${run_type} for experiment ${exp_name}"      >> ${logfile}
-echo " started at `date`"                           >> ${logfile}
-echo " on host `hostname -s`"                       >> ${logfile}
+echo " ${run_type} for experiment ${exp_name}                      " >> ${logfile}
+echo " started at `date`                                           " >> ${logfile}
+echo " on host `hostname -s`                                       " >> ${logfile}
 echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
-echo "                                            " >> ${logfile}
+echo "                                                             " >> ${logfile}
 
 today=`date "+%Y%m%d_%H%M%S"`
 # create run directories 
 if [ -e ${dir_run} ]; then 
 	echo "   ################################################" >> ${logfile}
-	echo "   ${dir_run} exists"                >> ${logfile}
-	echo "   moving it to ${dir_run}_${today}" >> ${logfile}
+	echo "   ${dir_run} exists"                                >> ${logfile}
+	echo "   moving it to ${dir_run}_${today}"                 >> ${logfile}
 	echo "   ################################################" >> ${logfile}
-	echo " "                                                   >> ${logfile}
+  echo "                                                   " >> ${logfile}
 	\mv -f ${dir_run} ${dir_run}_${today}
 fi
 
 # Change to working directory
 cd ${dir_run_local}
 
-# Copy model files (sqg_2b.f90 and SPECTRAL.f90) and final+1.nc file from ${dir_src}
-echo "                                   " >> ${logfile}
+# Link ${dir_run_truth}/smat.nc 
 echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
-echo "copy sQG model files and final+1.nc" >> ${logfile}
-echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
-if [ -e ${dir_src}/fortran ]; then
-  \cp -f ${dir_src}/fortran/Makefile     .
-  \cp -f ${dir_src}/fortran/sqg_2b.f90   .
-  \cp -f ${dir_src}/fortran/SPECTRAL.f90 .
-  \cp -f ${dir_src}/fortran/fft.f90      .
-  \cp -f ${dir_src}/fortran/restart.nc   .
-	echo "             " >> ${logfile}
-	echo "   ################################################" >> ${logfile}
-	cat SPECTRAL.f90     >> ${logfile}
-	echo "   ################################################" >> ${logfile}
-	echo "             " >> ${logfile}
-	echo "   ################################################" >> ${logfile}
-	echo "   compile model" >> ${logfile}
-	make sQG             >> ${logfile} 2>&1
-	echo "   ################################################" >> ${logfile}
+echo "Link ${dir_run_truth}/smat.nc"                                 >> ${logfile}
+if [ -e ${dir_run_truth}/smat.nc ]; then
+  \ln -sf ${dir_run_truth}/smat.nc    .
+	ncdump -h smat.nc     >> ${logfile} 2>&1
 else
 	echo "   ################################################" >> ${logfile}
-  echo "   ${dir_src}/fortran needs to exist" >> ${logfile}
+  echo "   ${dir_run_truth}/smat.nc needs to exist"          >> ${logfile}
 	echo "   ################################################" >> ${logfile}
 	clean_on_exit ${logfile} ${exp_name}/${run_type} ${dir_run_local} ${dir_run}
 fi
+echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
 
-# Run the model
-echo "          " >> ${logfile}
+# Extract control ensemble members from truth
+echo "                                                             " >> ${logfile}
 echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
-echo "launch sQG" >> ${logfile}
+echo "Extract Control from Truth"                                    >> ${logfile}
+let ie=1
+let tstart=1
+let tend=${tint}
+while [ $ie -le $Ne ]; do
+	echo "   ################################################" >> ${logfile}
+	let emem='10000 + ie'
+	emem=`echo ${emem} | cut -b2-`
+	echo "   Member ${emem}, ${tstart} --> ${tend}"                     >> ${logfile}
+	ncks -F -h -d time,${tstart},${tend},1 smat.nc -o smat_C_${emem}.nc >> ${logfile} 2>&1
+	ncatted -h -O -a ntims,global,d,,                 smat_C_${emem}.nc >> ${logfile} 2>&1
+	if [ ! -e smat_C_${emem}.nc ]; then
+		clean_on_exit ${logfile} ${exp_name}/${run_type} ${dir_run_local} ${dir_run}
+	fi
+	let tstart='tend'
+	let tend='tstart + tint - 1'
+	echo "   ################################################" >> ${logfile}
+	let ie='ie + 1'
+done
 echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
-echo "          " >> ${logfile}
-echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
-(time ./sQG)      >> ${logfile} 2>&1
-echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
-echo "          " >> ${logfile}
+echo "                                                             " >> ${logfile}
 
-# Check for successful completion
-if [ -e ${dir_run_local}/'final+1.nc' ]; then
-	echo "   ################################################" >> ${logfile}
-  echo "   sQG terminated cleanly at `date`"                 >> ${logfile} 
-	echo "   ################################################" >> ${logfile}
-else
-	echo "   ################################################" >> ${logfile}
-  echo "   sQG exited with errors at `date`"                 >> ${logfile}
-	echo "   ################################################" >> ${logfile}
-fi
+echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
+echo " ${run_type} for experiment ${exp_name}"                       >> ${logfile}
+echo " completed at `date`"                                          >> ${logfile}
+echo " on host `hostname -s`"                                        >> ${logfile}
+echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
+echo "                                                             " >> ${logfile}
 
-# Upon Exit, send email and clean 
+# Upon Exit, send email and clean
 clean_on_exit ${logfile} ${exp_name}/${run_type} ${dir_run_local} ${dir_run}

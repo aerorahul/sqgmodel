@@ -7,6 +7,25 @@
 # $Id$
 #############################################################
 
+#############################################################
+# F U N C T I O N S   S T A R T   H E R E
+#############################################################
+clean_on_exit( ) {
+	logfile=$1
+	exp_name=$2
+	dir_run_local=${3}
+	dir_run=${4}
+	\rm -f /tmp/msg
+	echo "last 50 lines of ... ${logfile}" >> /tmp/msg
+	tail -n 50 ${logfile}                  >> /tmp/msg
+	mutt -s "${exp_name} has stopped on host `hostname -s`" `whoami`@atmos.uw.edu < /tmp/msg
+	\mv -f ${dir_run_local} ${dir_run}
+	exit
+}
+
+#############################################################
+# M A I N   S C R I P T   S T A R T S   H E R E
+#############################################################
 # define experiment names and run types
 exp_name="shear1.0_amu1.0"
 run_type="preptruth"
@@ -32,19 +51,20 @@ touch ${logfile}
 
 echo "                                            " >> ${logfile}
 echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
-echo " ${run_type} for experiment ${exp_name}     " >> ${logfile}
-echo " started at `date`                          " >> ${logfile}
-echo " on host `hostname -s`                      " >> ${logfile}
+echo " ${run_type} for experiment ${exp_name}"      >> ${logfile}
+echo " started at `date`"                           >> ${logfile}
+echo " on host `hostname -s`"                       >> ${logfile}
 echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
 echo "                                            " >> ${logfile}
 
 today=`date "+%Y%m%d_%H%M%S"`
 # create run directories 
 if [ -e ${dir_run} ]; then 
-	echo "###################################################" >> ${logfile}
-	echo "${dir_run} exists               " >> ${logfile}
-	echo "moving it to ${dir_run}_${today}" >> ${logfile}
-	echo "###################################################" >> ${logfile}
+	echo "   ################################################" >> ${logfile}
+	echo "   ${dir_run} exists"                >> ${logfile}
+	echo "   moving it to ${dir_run}_${today}" >> ${logfile}
+	echo "   ################################################" >> ${logfile}
+	echo "                                                   " >> ${logfile}
 	\mv -f ${dir_run} ${dir_run}_${today}
 fi
 
@@ -52,29 +72,27 @@ fi
 cd ${dir_run_local}
 
 # Copy model files (sqg_2b.f90 and SPECTRAL.f90) and th_init.nc file from ${dir_src}
-echo "                                   " >> ${logfile}
 echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
 echo "copy sQG model files and th_init.nc" >> ${logfile}
-echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
 if [ -e ${dir_src}/fortran ]; then
   \cp -f ${dir_src}/fortran/Makefile     .
   \cp -f ${dir_src}/fortran/sqg_2b.f90   .
   \cp -f ${dir_src}/fortran/SPECTRAL.f90 .
   \cp -f ${dir_src}/fortran/fft.f90      .
-	echo "             " >> ${logfile}
-	echo "###################################################" >> ${logfile}
+	echo "   ################################################" >> ${logfile}
 	cat SPECTRAL.f90     >> ${logfile}
-	echo "###################################################" >> ${logfile}
+	echo "   ################################################" >> ${logfile}
 	echo "             " >> ${logfile}
-	echo "###################################################" >> ${logfile}
-	echo "compile model" >> ${logfile}
+	echo "   ################################################" >> ${logfile}
+	echo "   compile model" >> ${logfile}
 	make sQG             >> ${logfile} 2>&1
-	echo "###################################################" >> ${logfile}
+	echo "   ################################################" >> ${logfile}
 else
-	echo "###################################################" >> ${logfile}
-  echo "${dir_src}/fortran needs to exist" >> ${logfile}
-	echo "###################################################" >> ${logfile}
-  exit
+	echo "   ################################################" >> ${logfile}
+  echo "   ${dir_src}/fortran needs to exist" >> ${logfile}
+	echo "   ################################################" >> ${logfile}
+	echo "                                                   " >> ${logfile}
+  clean_on_exit ${logfile} ${exp_name}/${run_type} ${dir_run_local} ${dir_run}
 fi
 
 if [ -e ${dir_src}/matlab/th_init.nc ]; then
@@ -82,13 +100,16 @@ if [ -e ${dir_src}/matlab/th_init.nc ]; then
   \cp -f ${dir_src}/matlab/setcolor.m .
   \cp -f ${dir_src}/matlab/th_init.nc .
 else
-  echo "${dir_src}/matlab/th_init.nc needs to exist" >> ${logfile}
-  exit
+	echo "   ################################################" >> ${logfile}
+  echo "   ${dir_src}/matlab/th_init.nc needs to exist"         >> ${logfile}
+	echo "   ################################################" >> ${logfile}
+	echo "                                                   " >> ${logfile}
+  clean_on_exit ${logfile} ${exp_name}/${run_type} ${dir_run_local} ${dir_run}
 fi
+echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
 echo "                                   " >> ${logfile}
 
 # Run the model
-echo "          " >> ${logfile}
 echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
 echo "launch sQG" >> ${logfile}
 echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
@@ -100,14 +121,14 @@ echo "          " >> ${logfile}
 
 # Check for successful completion
 if [ -e ${dir_run_local}/'final+1.nc' ]; then
-	echo "###################################################" >> ${logfile}
-  echo "sQG terminated cleanly at `date`" >> ${logfile} 
-	echo "###################################################" >> ${logfile}
+	echo "   ################################################" >> ${logfile}
+  echo "   sQG terminated cleanly at `date`"                 >> ${logfile} 
+	echo "   ################################################" >> ${logfile}
 else
-	echo "###################################################" >> ${logfile}
-  echo "sQG exited with errors at `date`" >> ${logfile}
-	echo "###################################################" >> ${logfile}
+	echo "   ################################################" >> ${logfile}
+  echo "   sQG exited with errors at `date`"                 >> ${logfile}
+	echo "   ################################################" >> ${logfile}
 fi
 
-# Move local run directory to experiment run directory
-\mv -f ${dir_run_local} ${dir_run}
+# Upon Exit, send email and clean
+clean_on_exit ${logfile} ${exp_name}/${run_type} ${dir_run_local} ${dir_run}
