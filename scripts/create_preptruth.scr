@@ -21,7 +21,7 @@ dir_src=${dir_expt_src}/${exp_name}/${run_type}/src
 dir_run=${dir_expt_run}/${exp_name}/${run_type}/run${run_number}
 dir_log=${dir_expt_run}/${exp_name}/${run_type}/log
 
-dir_run_local="/home/`hostname -s`/`whoami`/${exp_name}/${run_type}/run${run_number}"
+dir_run_local="/home/`hostname -s`/`whoami`/${exp_name}_${run_type}_run${run_number}"
 if [ -e ${dir_run_local} ]; then
 	\rm -rf ${dir_run_local}
 fi
@@ -46,6 +46,7 @@ if [ -e ${dir_run} ]; then
 	echo "moving it to ${dir_run}_${today}" >> ${logfile}
 	echo "###################################################" >> ${logfile}
 	\mv -f ${dir_run} ${dir_run}_${today}
+	mkdir -p ${dir_run}
 fi
 
 # Change to working directory
@@ -110,4 +111,4 @@ else
 fi
 
 # Move local run directory to experiment run directory
-\mv -f ${dir_run_local} ${dir_run}
+\mv -f ${dir_run_local}/* ${dir_run}/
