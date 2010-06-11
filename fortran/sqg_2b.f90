@@ -1333,7 +1333,7 @@ subroutine tstep_ab(tend,dat,told,told2,ak,bl,dco,dts,flag)
 	endif
   
 	! 12/17/2008: damps l=0 faster for stability (used to zero in main block)
-  if (bl .eq. 0) relax = relax*4
+  !if (bl .eq. 0) relax = relax*4  ! this was not present in RBM's MS Thesis work
 
   tfac = dts*((dco*(((ak**2)+(bl**2))**(n/2))) + relax)
 
