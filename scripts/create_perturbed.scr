@@ -1,0 +1,183 @@
+#!/bin/bash
+#############################################################
+# <next few lines under version control, D O  N O T  E D I T>
+# $Date$
+# $Author$
+# $Revision$
+# $Id$
+#############################################################
+
+#############################################################
+# F U N C T I O N S   S T A R T   H E R E
+#############################################################
+clean_on_exit( ) {
+	logfile=$1
+	exp_name=$2
+	\rm -f /tmp/msg
+	echo "last 50 lines of ... ${logfile}" >> /tmp/msg
+	tail -n 50 ${logfile}                  >> /tmp/msg
+	mutt -s "${exp_name} has stopped on host `hostname -s`" `whoami`@atmos.uw.edu < /tmp/msg
+	exit
+}
+
+#############################################################
+# M A I N   S C R I P T   S T A R T S   H E R E
+#############################################################
+# define experiment names and run types
+exp_name="shear1.0_amu1.0"
+run_type="perturbed"
+let run_number=1
+let control_run_number=1
+
+# Ensemble properties
+let Ne=3500  # no. of ensemble members
+
+# define local and remote experiment directories 
+dir_expt_src="/home/disk/pvort/rahulm/sqg_experiments"
+dir_expt_run="/home/disk/p/nobackup/rahulm/ALL_ETC/sqg_experiments"
+
+# define experiment source, run and log directories 
+dir_src=${dir_expt_src}/${exp_name}/${run_type}/src
+dir_run=${dir_expt_run}/${exp_name}/${run_type}/run${run_number}
+dir_run_control=${dir_expt_run}/${exp_name}/control/run${control_run_number}
+
+# create run directories 
+if [ -e ${dir_run} ]; then
+	tmplog=/tmp/logfile
+	\rm -f ${tmplog}; touch ${tmplog}
+	echo "   ################################################"   >> ${tmplog}
+	echo "   ${dir_run} exists"                                  >> ${tmplog}
+	echo "   cannot continue, needs your attention, EXITING  "   >> ${tmplog}
+	echo "   ################################################"   >> ${tmplog}
+  echo "                                                   "   >> ${tmplog}
+	clean_on_exit ${tmplog} ${exp_name}/${run_type}
+else
+	mkdir -p ${dir_run}; cd ${dir_run}
+fi
+
+logfile=${dir_run}/log_${run_type}_${run_number}
+touch ${logfile}
+
+echo "                                                             " >> ${logfile}
+echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
+echo " ${run_type} for experiment ${exp_name}                      " >> ${logfile}
+echo " started at `date`                                           " >> ${logfile}
+echo " on host `hostname -s`                                       " >> ${logfile}
+echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
+echo "                                                             " >> ${logfile}
+
+# Copy model files in the run directory for the record
+\cp -f ${dir_src}/fortran/Makefile     .
+\cp -f ${dir_src}/fortran/SPECTRAL.f90 .
+\cp -f ${dir_src}/fortran/fft.f90      .
+\cp -f ${dir_src}/fortran/sqg_2b.f90   .
+echo "   ############################################" >> ${logfile}
+cat    ${dir_src}/fortran/SPECTRAL.f90                 >> ${logfile}
+echo "   ############################################" >> ${logfile}
+echo "                                               " >> ${logfile}
+
+# Create a script to be submitted to the queue for each member
+touch run_sQG_mem.scr; chmod 755 run_sQG_mem.scr
+cat >> run_sQG_mem.scr << END_INPUT
+#!/bin/bash
+
+# Read input arguments
+    mem=\${1}
+dir_src=\${2}
+dir_run=\${3}
+dir_con=\${4}
+
+# Create local run directory on host
+dir_local=/home/\`hostname -s\`/\`whoami\`/sQG_mem_\${mem}
+if [ -e \${dir_local} ]; then \rm -rf \${dir_local}; fi
+mkdir -p \${dir_local}; cd \${dir_local}
+logmem=\${dir_local}/log_sQG_mem\${mem}; touch \${logmem}
+echo " "                                                  >> \${logmem}
+echo "   ===============================================" >> \${logmem}
+echo "      Processing member \${mem} on \`hostname\`"    >> \${logmem}
+echo "   ===============================================" >> \${logmem}
+
+# Copy model files
+\cp -f \${dir_src}/fortran/Makefile     .
+\cp -f \${dir_src}/fortran/SPECTRAL.f90 .
+\cp -f \${dir_src}/fortran/fft.f90      .
+\cp -f \${dir_src}/fortran/sqg_2b.f90   .
+
+# Copy theta and tracer init files
+\cp -f \${dir_src}/matlab/th_init.nc    .
+\cp -f \${dir_src}/matlab/tr_init.nc    .
+
+# Copy ensemble member control file 
+\cp -f \${dir_con}/smat_C_\${mem}.nc    .
+
+# Extract 1st time for restart.nc
+ncks -h -F -d time,1,1,1 smat_C_\${mem}.nc -o restart.nc >> \${logmem} 2>&1
+if [ ! -e restart.nc ]; then
+	echo "   ==============================================="  >> \${logmem}
+	echo "      ncks FAILED to create restart.nc "             >> \${logmem}
+	echo "      for member \${mem} on \`hostname\`"            >> \${logmem}
+	echo "   ==============================================="  >> \${logmem}
+	\mv -f \${logmem} \${dir_run}/log_sQG_\${mem}
+	cd; \rm -rf \${dir_local}
+	exit
+fi
+
+# Compile model and execute
+make clean   >> \${logmem} 2>&1
+make         >> \${logmem} 2>&1
+(time ./sQG) >> \${logmem} 2>&1
+
+if [ -e 'final+1.nc' ]; then
+	echo "   ==============================================="     >> \${logmem}
+	echo "      sQG SUCCESS for member \${mem} on \`hostname\`"   >> \${logmem}
+	echo "   ==============================================="     >> \${logmem}
+	\mv -f smat.nc    \${dir_run}/smat_P_\${mem}
+else
+	echo "   ==============================================="     >> \${logmem}
+	echo "      sQG FAILED for member \${mem} on \`hostname\`"    >> \${logmem}
+	echo "   ==============================================="     >> \${logmem}
+fi
+echo " "                                                        >> \${logmem}
+
+# Move logfile and clean
+\mv -f \${logmem} \${dir_run}/log_sQG_\${mem}
+cd; \rm -rf \${dir_local}
+END_INPUT
+
+# Submit members to the queue
+let ie=1
+while [ ${ie} -le ${Ne} ]; do
+	
+	let emem='10000 + ie'
+	emem=`echo ${emem} | cut -b2-`
+
+	\cp -f run_sQG_mem.scr run_sQG_mem.scr_${emem}
+	qsub -q MPI -pe ompi 1 -V -o /dev/null -e /dev/null run_sQG_mem.scr_${emem} ${emem} ${dir_src} ${dir_run} ${dir_run_control} >> ${logfile} 2>&1
+	\rm -f run_sQG_mem.scr_${emem}
+
+	let ie='ie+1'
+done
+\rm -f run_sQG_mem.scr
+
+# Wait for completion of all members
+let ie=1
+while [ ${ie} -le ${Ne} ]; do
+	
+	let emem='10000 + ie'
+	emem=`echo ${emem} | cut -b2-`
+	
+	until [ -e ${dir_run}/log_sQG_${emem} ]; do sleep 10; done
+	cat    ${dir_run}/log_sQG_${emem} >> ${logfile}
+	\rm -f ${dir_run}/log_sQG_${emem}
+
+	let ie='ie+1'
+done
+
+echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
+echo " ${run_type} for experiment ${exp_name}"                       >> ${logfile}
+echo " completed at `date`"                                          >> ${logfile}
+echo " on host `hostname -s`"                                        >> ${logfile}
+echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
+
+# Upon Exit, send email and clean
+clean_on_exit ${logfile} ${exp_name}/${run_type}

@@ -13,13 +13,10 @@
 clean_on_exit( ) {
 	logfile=$1
 	exp_name=$2
-	dir_run_local=${3}
-	dir_run=${4}
 	\rm -f /tmp/msg
 	echo "last 50 lines of ... ${logfile}" >> /tmp/msg
 	tail -n 50 ${logfile}                  >> /tmp/msg
 	mutt -s "${exp_name} has stopped on host `hostname -s`" `whoami`@atmos.uw.edu < /tmp/msg
-	\mv -f ${dir_run_local} ${dir_run}
 	exit
 }
 
@@ -45,13 +42,21 @@ dir_src=${dir_expt_src}/${exp_name}/${run_type}/src
 dir_run=${dir_expt_run}/${exp_name}/${run_type}/run${run_number}
 dir_run_truth=${dir_expt_run}/${exp_name}/truth/run${truth_run_number}
 
-dir_run_local="/home/`hostname -s`/`whoami`/${exp_name}_${run_type}_run${run_number}"
-if [ -e ${dir_run_local} ]; then
-	\rm -rf ${dir_run_local}
+# create run directories 
+if [ -e ${dir_run} ]; then
+	tmplog=/tmp/logfile
+	\rm -f ${tmplog}; touch ${tmplog}
+	echo "   ################################################"   >> ${tmplog}
+	echo "   ${dir_run} exists"                                  >> ${tmplog}
+	echo "   cannot continue, needs your attention, EXITING  "   >> ${tmplog}
+	echo "   ################################################"   >> ${tmplog}
+  echo "                                                   "   >> ${tmplog}
+	clean_on_exit ${tmplog} ${exp_name}/${run_type}
+else
+	mkdir -p ${dir_run}
 fi
-mkdir -p ${dir_run_local}
 
-logfile=${dir_run_local}/log_${run_type}_${run_number}
+logfile=${dir_run}/log_${run_type}_${run_number}
 touch ${logfile}
 
 echo "                                                             " >> ${logfile}
@@ -62,19 +67,8 @@ echo " on host `hostname -s`                                       " >> ${logfil
 echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
 echo "                                                             " >> ${logfile}
 
-today=`date "+%Y%m%d_%H%M%S"`
-# create run directories 
-if [ -e ${dir_run} ]; then 
-	echo "   ################################################" >> ${logfile}
-	echo "   ${dir_run} exists"                                >> ${logfile}
-	echo "   moving it to ${dir_run}_${today}"                 >> ${logfile}
-	echo "   ################################################" >> ${logfile}
-  echo "                                                   " >> ${logfile}
-	\mv -f ${dir_run} ${dir_run}_${today}
-fi
-
 # Change to working directory
-cd ${dir_run_local}
+cd ${dir_run}
 
 # Link ${dir_run_truth}/smat.nc 
 echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
@@ -86,7 +80,7 @@ else
 	echo "   ################################################" >> ${logfile}
   echo "   ${dir_run_truth}/smat.nc needs to exist"          >> ${logfile}
 	echo "   ################################################" >> ${logfile}
-	clean_on_exit ${logfile} ${exp_name}/${run_type} ${dir_run_local} ${dir_run}
+	clean_on_exit ${logfile} ${exp_name}/${run_type}
 fi
 echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
 
@@ -105,7 +99,7 @@ while [ $ie -le $Ne ]; do
 	ncks -F -h -d time,${tstart},${tend},1 smat.nc -o smat_C_${emem}.nc >> ${logfile} 2>&1
 	ncatted -h -O -a ntims,global,d,,                 smat_C_${emem}.nc >> ${logfile} 2>&1
 	if [ ! -e smat_C_${emem}.nc ]; then
-		clean_on_exit ${logfile} ${exp_name}/${run_type} ${dir_run_local} ${dir_run}
+		clean_on_exit ${logfile} ${exp_name}/${run_type}
 	fi
 	let tstart='tend'
 	let tend='tstart + tint - 1'
@@ -123,4 +117,4 @@ echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfil
 echo "                                                             " >> ${logfile}
 
 # Upon Exit, send email and clean
-clean_on_exit ${logfile} ${exp_name}/${run_type} ${dir_run_local} ${dir_run}
+clean_on_exit ${logfile} ${exp_name}/${run_type}
