@@ -38,19 +38,25 @@ BIN    = .
 sQG_OBJ = $(SRC)/SPECTRAL.f90 \
           $(SRC)/sqg_2b.f90   \
           $(SRC)/fft.f90
+
+arBase_OBJ = $(SRC)/add_or_remove_base.f90
 #------------------------------------------------------------
 
 #------------------------------------------------------------
 .f90.o :
 	$(F90) $(FFLAGS) -c $< -o $@
-#------------------------------------------------------------
 
-#------------------------------------------------------------
 sQG : $(sQG_OBJ)
 	$(F90) $(FFLAGS) -o $(BIN)/sQG $(sQG_OBJ) $(NCFLAGS)
 
-all : sQG
+add_or_remove_base : $(arBase_OBJ)
+	$(F90) $(FFLAGS) -o $(BIN)/add_or_remove_base $(arBase_OBJ) $(NCFLAGS)
+
+all: sQG \
+     add_or_remove_base
 
 clean:
-	$(RM) $(SRC)/*.o $(SRC)/*.mod $(BIN)/sQG
+	$(RM) $(SRC)/*.o $(RM) $(SRC)/*.mod \
+$(RM) $(BIN)/sQG   \
+$(RM) $(BIN)/add_or_remove_base
 #------------------------------------------------------------
