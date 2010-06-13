@@ -30,7 +30,7 @@ let run_number=1
 let control_run_number=1
 
 # Ensemble properties
-let Ne=3500  # no. of ensemble members
+let Ne=5000  # no. of ensemble members
 
 # define local and remote experiment directories 
 dir_expt_src="/home/disk/pvort/rahulm/sqg_experiments"
@@ -110,17 +110,22 @@ echo "   ===============================================" >> \${logmem}
 # Copy ensemble member control file 
 \cp -f \${dir_con}/smat_C_\${mem}.nc    .
 
-# Extract 1st time for restart.nc
-ncks -h -F -d time,1,1,1 smat_C_\${mem}.nc -o restart.nc >> \${logmem} 2>&1
+# Copy base state file 
+\cp -f \${dir_con}/base.nc              .
+
+# Extract 1st time for restart.nc and remove base state from it
+ncks    -h -F -d time,1,1,1 smat_C_\${mem}.nc -o tmp_restart.nc  >> \${logmem} 2>&1
+ncdiff  -h -v thetaB,thetaT tmp_restart.nc base.nc -o restart.nc >> \${logmem} 2>&1
 if [ ! -e restart.nc ]; then
 	echo "   ==============================================="  >> \${logmem}
-	echo "      ncks FAILED to create restart.nc "             >> \${logmem}
+	echo "      ncks or ncdiff FAILED to create restart.nc  "  >> \${logmem}
 	echo "      for member \${mem} on \`hostname\`"            >> \${logmem}
 	echo "   ==============================================="  >> \${logmem}
 	\mv -f \${logmem} \${dir_run}/log_sQG_\${mem}
 	cd; \rm -rf \${dir_local}
 	exit
 fi
+\rm -f smat_C_\${mem}.nc base.nc
 
 # Compile model and execute
 make clean   >> \${logmem} 2>&1
@@ -131,7 +136,7 @@ if [ -e 'final+1.nc' ]; then
 	echo "   ==============================================="     >> \${logmem}
 	echo "      sQG SUCCESS for member \${mem} on \`hostname\`"   >> \${logmem}
 	echo "   ==============================================="     >> \${logmem}
-	\mv -f smat.nc    \${dir_run}/smat_P_\${mem}
+	\mv -f smat.nc \${dir_run}/smat_P_\${mem}.nc
 else
 	echo "   ==============================================="     >> \${logmem}
 	echo "      sQG FAILED for member \${mem} on \`hostname\`"    >> \${logmem}
