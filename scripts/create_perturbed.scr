@@ -153,7 +153,7 @@ END_INPUT
 let ie=1
 while [ ${ie} -le ${Ne} ]; do
 	
-	let emem='10000 + ie'
+	let emem='100000 + ie'
 	emem=`echo ${emem} | cut -b2-`
 
 	\cp -f run_sQG_mem.scr run_sQG_mem.scr_${emem}
@@ -168,7 +168,7 @@ done
 let ie=1
 while [ ${ie} -le ${Ne} ]; do
 	
-	let emem='10000 + ie'
+	let emem='100000 + ie'
 	emem=`echo ${emem} | cut -b2-`
 	
 	until [ -e ${dir_run}/log_sQG_${emem} ]; do sleep 10; done

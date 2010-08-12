@@ -24,14 +24,14 @@ clean_on_exit( ) {
 # M A I N   S C R I P T   S T A R T S   H E R E
 #############################################################
 # define experiment names and run types
-exp_name="shear1.0_amu1.0"
-run_type="control"
+exp_name="shear1.0_amu1.5"
+run_type="diagnostics"
 let run_number=1
-let truth_run_number=1
+let control_run_number=1
+let perturbed_run_number=1
 
 # Ensemble properties
-let Ne=5000  # no. of ensemble members
-let tint=21  # no. of times in each ensemble member
+let Ne=10000  # no. of ensemble members
 
 # define local and remote experiment directories 
 dir_expt_src="/home/disk/pvort/rahulm/sqg_experiments"
@@ -40,7 +40,8 @@ dir_expt_run="/home/disk/p/nobackup/rahulm/ALL_ETC/sqg_experiments"
 # define experiment source, run and log directories 
 dir_src=${dir_expt_src}/${exp_name}/${run_type}/src
 dir_run=${dir_expt_run}/${exp_name}/${run_type}/run${run_number}
-dir_run_truth=${dir_expt_run}/${exp_name}/truth/run${truth_run_number}
+dir_run_control=${dir_expt_run}/${exp_name}/control/run${control_run_number}
+dir_run_perturbed=${dir_expt_run}/${exp_name}/perturbed/run${perturbed_run_number}
 
 # create run directories 
 if [ -e ${dir_run} ]; then
@@ -70,57 +71,59 @@ echo "                                                             " >> ${logfil
 # Change to working directory
 cd ${dir_run}
 
-# Copy base.nc and Link smat.nc from ${dir_run_truth}
+# Copy diagnostic files (sqg_diag.f90 and Makefile) from ${dir_src}
 echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
-echo "Copy ${dir_run_truth}/base.nc"                                 >> ${logfile}
-if [ -e ${dir_run_truth}/base.nc ]; then
-  \cp -f ${dir_run_truth}/base.nc    .
-else
-	echo "   ################################################" >> ${logfile}
-  echo "   ${dir_run_truth}/base.nc needs to exist"          >> ${logfile}
-	echo "   ################################################" >> ${logfile}
-	clean_on_exit ${logfile} ${exp_name}/${run_type}
-fi
-echo "Link ${dir_run_truth}/smat.nc"                                 >> ${logfile}
-if [ -e ${dir_run_truth}/smat.nc ]; then
-  \ln -sf ${dir_run_truth}/smat.nc    .
-	ncdump -h smat.nc     >> ${logfile} 2>&1
-else
-	echo "   ################################################" >> ${logfile}
-  echo "   ${dir_run_truth}/smat.nc needs to exist"          >> ${logfile}
-	echo "   ################################################" >> ${logfile}
-	clean_on_exit ${logfile} ${exp_name}/${run_type}
-fi
+echo "                                   " >> ${logfile}
 echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
-
-# Extract control ensemble members from truth
-echo "                                                             " >> ${logfile}
+echo "copy sQG diagnostic files" >> ${logfile}
 echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
-echo "Extract Control from Truth"                                    >> ${logfile}
-let ie=1
-let tstart='(ie - 1) * (tint - 1) + 1'
-let tend='tstart + tint - 1'
-while [ $ie -le $Ne ]; do
-	echo "   ################################################" >> ${logfile}
-	let emem='100000 + ie'
-	emem=`echo ${emem} | cut -b2-`
-	echo "   Member ${emem}, ${tstart} --> ${tend}"                     >> ${logfile}
-	ncks -F -h -d time,${tstart},${tend},1 smat.nc -o smat_C_${emem}.nc >> ${logfile} 2>&1
-	ncatted -h -O -a ntims,global,d,,                 smat_C_${emem}.nc >> ${logfile} 2>&1
-	if [ ! -e smat_C_${emem}.nc ]; then
-		echo "   ncks OR ncatted FAILED on member ${emem}"                >> ${logfile}
+if [ -e ${dir_src}/fortran ]; then
+  \cp -f ${dir_src}/fortran/Makefile       .
+  \cp -f ${dir_src}/fortran/sqg_diag.f90   .
+	echo "                   " >> ${logfile}
+	echo "   compile sqg_diag" >> ${logfile}
+	make sQG_diag              >> ${logfile} 2>&1
+	if [ ! -e sQG_diag ]; then
+		echo "   ################################################" >> ${logfile}
+	  echo "   sQG_diag was not compiled" >> ${logfile}
+		echo "   ################################################" >> ${logfile}
 		clean_on_exit ${logfile} ${exp_name}/${run_type}
 	fi
-	let tstart='tend'
-	let tend='tstart + tint - 1'
 	echo "   ################################################" >> ${logfile}
-	let ie='ie + 1'
-done
-echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
-echo "                                                             " >> ${logfile}
+else
+	echo "   ################################################" >> ${logfile}
+  echo "   ${dir_src}/fortran needs to exist" >> ${logfile}
+	echo "   ################################################" >> ${logfile}
+	clean_on_exit ${logfile} ${exp_name}/${run_type}
+fi
 
-# Clean up and remove the linked smat.nc file
-\rm -f ${dir_run_truth}/smat.nc    .
+# Link all control and perturbed run files
+let ie=1
+while [ $ie -le $Ne ]; do
+
+	let emem='100000 + ie'
+	emem=`echo ${emem} | cut -b2-`
+
+	\ln -sf ${dir_run_control}/smat_C_${emem}.nc   .
+	\ln -sf ${dir_run_perturbed}/smat_P_${emem}.nc .
+	
+	let ie='ie+1'
+done
+
+# Run the diagnostic utility
+echo "                " >> ${logfile}
+echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
+echo "launch sQG_diag " >> ${logfile}
+echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
+echo "                " >> ${logfile}
+echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
+(time ./sQG_diag ${Ne}) >> ${logfile} 2>&1
+echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
+echo "                " >> ${logfile}
+
+# Clean up and remove the linked smat_C_*.nc and smat_P_*.nc files
+\rm -f ${dir_run}/smat_C_*.nc
+\rm -f ${dir_run}/smat_P_*.nc
 
 echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
 echo " ${run_type} for experiment ${exp_name}"                       >> ${logfile}
