@@ -42,9 +42,9 @@ PROGRAM sqg_diag
 		endif
 
 		if ( n == 1 ) then
-			
+
 			call read_dimensions(smatCfile,kmax,lmax,tmax)
-			
+
 			allocate( thxyB_c(  2*kmax,2*lmax,tmax) ) ; allocate( thxyT_c(  2*kmax,2*lmax,tmax) )
 			allocate( trxyB_c(  2*kmax,2*lmax,tmax) ) ; allocate( trxyT_c(  2*kmax,2*lmax,tmax) )
 			allocate( thxyB_p(  2*kmax,2*lmax,tmax) ) ; allocate( thxyT_p(  2*kmax,2*lmax,tmax) )
@@ -64,6 +64,8 @@ PROGRAM sqg_diag
 
 		thxyB = thxyB_p - thxyB_c ; thxyT = thxyT_p - thxyT_c
 		trxyB = trxyB_p           ; trxyT = trxyT_p
+
+		call write_diag(n,thxyB,thxyT,trxyB,trxyT)
 
 		thxyB_sum = thxyB_sum + thxyB ; thxyT_sum = thxyT_sum + thxyT
 		trxyB_sum = trxyB_sum + trxyB ; trxyT_sum = trxyT_sum + trxyT
@@ -142,8 +144,8 @@ PROGRAM sqg_diag
 	deallocate(thxyB_sum)  ; deallocate(thxyT_sum)
 	deallocate(trxyB_sum)  ; deallocate(trxyT_sum)
 	
-	call write_diag(thxyB_mean,   thxyT_mean,   trxyB_mean,   trxyT_mean, &
-	                thxyB_spread, thxyT_spread, trxyB_spread, trxyT_spread)
+	call write_diag_STATS(thxyB_mean,   thxyT_mean,   trxyB_mean,   trxyT_mean, &
+	                      thxyB_spread, thxyT_spread, trxyB_spread, trxyT_spread)
 
 	deallocate(thxyB_mean)   ; deallocate(thxyT_mean)
 	deallocate(trxyB_mean)   ; deallocate(trxyT_mean)
@@ -220,15 +222,69 @@ SUBROUTINE read_smat(filename,thB,thT,trB,trT)
   return
 end SUBROUTINE read_smat
 
-SUBROUTINE write_diag(thBm,thTm,trBm,trTm,thBs,thTs,trBs,trTs)
+SUBROUTINE write_diag(n,thB,thT,trB,trT)
+  
+	implicit none
+
+	integer,                              intent(in)  :: n
+	real, dimension(2*kmax,2*lmax, tmax), intent (in) :: thB,thT,trB,trT
+	integer                      :: ncid, varid, vardim(4), start(4), count(4)
+	character(len=64), parameter :: diag_file = 'smat_diag.nc'
+	character(len=64), parameter :: routine_name = 'write_diag'
+
+	if ( n == 1 ) then
+	
+		if(debug) print*,'creating file ... ', trim(adjustl(diag_file))
+
+		call check( nf90_create(trim(adjustl(diag_file)), NF90_CLOBBER .or. NF90_64BIT_OFFSET, ncid), routine_name )
+	
+		call check( nf90_def_dim(ncid, "nx",   2*kmax,   vardim(1)), routine_name )
+		call check( nf90_def_dim(ncid, "ny",   2*lmax,   vardim(2)), routine_name )
+		call check( nf90_def_dim(ncid, "time",   tmax,   vardim(3)), routine_name )
+		call check( nf90_def_dim(ncid, "copy", ens_size, vardim(4)), routine_name )
+
+		call check( nf90_def_var(ncid, "thetaB", NF90_FLOAT, vardim,    varid), routine_name )
+		call check( nf90_put_att(ncid, varid, "description", "bottom potential temperature"), routine_name )
+		call check( nf90_def_var(ncid, "thetaT", NF90_FLOAT, vardim,    varid), routine_name )
+		call check( nf90_put_att(ncid, varid, "description", "potential temperature"), routine_name )
+		call check( nf90_def_var(ncid, "tracerB", NF90_FLOAT, vardim,    varid), routine_name )
+		call check( nf90_put_att(ncid, varid, "description", "bottom tracer"), routine_name )
+		call check( nf90_def_var(ncid, "tracerT", NF90_FLOAT, vardim,    varid), routine_name )
+		call check( nf90_put_att(ncid, varid, "description", "toppom tracer"), routine_name )
+
+		call check( nf90_enddef(ncid), routine_name )
+		call check (nf90_close(ncid),  routine_name )
+
+	endif
+
+	start(1) = 1      ; start(2) = 1      ; start(3) = 1    ; start(4) = n
+	count(1) = 2*kmax ; count(2) = 2*lmax ; count(3) = tmax ; count(4) = 1
+
+	call check( nf90_open(trim(adjustl(diag_file)), NF90_WRITE, ncid), routine_name )
+
+	call check( nf90_inq_varid(ncid, "thetaB",    varid ), routine_name )
+	call check( nf90_put_var(ncid, varid, thB, start, count), routine_name )
+	call check( nf90_inq_varid(ncid, "thetaT",    varid), routine_name )
+	call check( nf90_put_var(ncid, varid, thT, start, count), routine_name )
+	call check( nf90_inq_varid(ncid, "tracerB",   varid), routine_name )
+	call check( nf90_put_var(ncid, varid, trB, start, count), routine_name )
+	call check( nf90_inq_varid(ncid, "tracerT",   varid), routine_name )
+	call check( nf90_put_var(ncid, varid, trT, start, count), routine_name )
+	
+	call check (nf90_close(ncid), routine_name )
+  
+	return
+end SUBROUTINE write_diag
+
+SUBROUTINE write_diag_STATS(thBm,thTm,trBm,trTm,thBs,thTs,trBs,trTs)
 
   IMPLICIT NONE
 
   real, dimension(2*kmax,2*lmax, tmax), intent (in) :: thBm,thTm,thBs,thTs
   real, dimension(2*kmax,2*lmax, tmax), intent (in) :: trBm,trTm,trBs,trTs
 	integer                      :: ncid, varid, vardim(3)
-	character(len=64)            :: diag_file = 'smat_diag.nc'
-	character(len=64), parameter :: routine_name = 'write_diag'
+	character(len=64)            :: diag_file = 'smat_stats.nc'
+	character(len=64), parameter :: routine_name = 'write_diag_STATS'
 
 	if(debug) print*,'writing data to   ... ',  trim(adjustl(diag_file))
 
@@ -282,7 +338,7 @@ SUBROUTINE write_diag(thBm,thTm,trBm,trTm,thBs,thTs,trBs,trTs)
 	call check( nf90_close(ncid), routine_name  )
 
   return
-end SUBROUTINE write_diag
+end SUBROUTINE write_diag_STATS
 
 subroutine check(ierr, routine_name)
 
