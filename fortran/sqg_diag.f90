@@ -1,6 +1,6 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! <next few lines under version control, D O  N O T  E D I T>
-! $Date$
+! $Date: 2010-08-12 12:03:57 -0700 (Thu, 12 Aug 2010) $
 ! $Author$
 ! $Revision$
 ! $Id$
