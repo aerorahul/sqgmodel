@@ -23,22 +23,28 @@ clean_on_exit( ) {
 #############################################################
 # M A I N   S C R I P T   S T A R T S   H E R E
 #############################################################
+
+#############  U S E R  I N P U T  -  B E G I N  #############
+
 # define experiment names and run types
 exp_name="shear1.0_amu1.0"
+exp_type="THETA"
 run_type="perturbed"
 let run_number=1
 let control_run_number=1
 
-# Ensemble properties
+# Ensemble size
 let Ne=5000  # no. of ensemble members
 
 # define local and remote experiment directories 
 dir_expt_src="/home/disk/pvort/rahulm/sqg_experiments"
 dir_expt_run="/home/disk/p/nobackup/rahulm/ALL_ETC/sqg_experiments"
 
+###############  U S E R  I N P U T  -  E N D  ###############
+
 # define experiment source, run and log directories 
 dir_src=${dir_expt_src}/${exp_name}/${run_type}/src
-dir_run=${dir_expt_run}/${exp_name}/${run_type}/run${run_number}
+dir_run=${dir_expt_run}/${exp_name}/${run_type}/run${run_number}_${exp_type}
 dir_run_control=${dir_expt_run}/${exp_name}/control/run${control_run_number}
 
 # create run directories 
@@ -104,8 +110,8 @@ echo "   ===============================================" >> \${logmem}
 \cp -f \${dir_src}/fortran/sqg_2b.f90   .
 
 # Copy theta and tracer init files
-\cp -f \${dir_src}/matlab/th_init.nc    .
-\cp -f \${dir_src}/matlab/tr_init.nc    .
+\cp -f \${dir_src}/matlab/th_init.nc_${exp_type} .
+\cp -f \${dir_src}/matlab/tr_init.nc             .
 
 # Copy ensemble member control file 
 \cp -f \${dir_con}/smat_C_\${mem}.nc    .
@@ -114,8 +120,8 @@ echo "   ===============================================" >> \${logmem}
 \cp -f \${dir_con}/base.nc              .
 
 # Extract 1st time for restart.nc and remove base state from it
-ncks    -h -F -d time,1,1,1 smat_C_\${mem}.nc -o tmp_restart.nc  >> \${logmem} 2>&1
-ncdiff  -h -v thetaB,thetaT tmp_restart.nc base.nc -o restart.nc >> \${logmem} 2>&1
+ncks   -h -F -d time,1,1,1 smat_C_\${mem}.nc -o tmp_restart.nc  >> \${logmem} 2>&1
+ncdiff -h -v thetaB,thetaT tmp_restart.nc base.nc -o restart.nc >> \${logmem} 2>&1
 if [ ! -e restart.nc ]; then
 	echo "   ==============================================="  >> \${logmem}
 	echo "      ncks or ncdiff FAILED to create restart.nc  "  >> \${logmem}
@@ -157,7 +163,7 @@ while [ ${ie} -le ${Ne} ]; do
 	emem=`echo ${emem} | cut -b2-`
 
 	\cp -f run_sQG_mem.scr run_sQG_mem.scr_${emem}
-	qsub -q MPI -pe ompi 1 -V -o /dev/null -e /dev/null run_sQG_mem.scr_${emem} ${emem} ${dir_src} ${dir_run} ${dir_run_control} >> ${logfile} 2>&1
+	qsub -q MPI -pe smp 1 -V -o /dev/null -e /dev/null run_sQG_mem.scr_${emem} ${emem} ${dir_src} ${dir_run} ${dir_run_control} >> ${logfile} 2>&1
 	\rm -f run_sQG_mem.scr_${emem}
 
 	let ie='ie+1'
