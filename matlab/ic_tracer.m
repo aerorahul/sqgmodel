@@ -33,7 +33,7 @@ trT = abs(thT ./ maxval);
 
 nc = netcdf('tr_init.nc','clobber');
 nc('nx') = Nx;
-nc('ny') = Ny);
+nc('ny') = Ny;
 nc{'tracerB'} = ncfloat('ny','nx');
 nc{'tracerT'} = ncfloat('ny','nx');
 nc{'tracerB'}(:) = trB;
