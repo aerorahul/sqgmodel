@@ -18,18 +18,22 @@
 
 function normalize_ic(fname,scale)
 
-nc = netcdf('fname','write');
+nc = netcdf(fname,'write');
 
 th = nc{'thetaT'}(:);
 maxval = max(max(abs(th)));
 disp(['max(max(abs(thetaT))) = ' num2str(maxval)])
-th = th ./ (maxval * scale);
+if (maxval ~= 0)
+	th = th ./ (maxval * scale);
+end
 nc{'thetaT'}(:) = th;
 
 th = nc{'thetaB'}(:);
 maxval = max(max(abs(th)));
 disp(['max(max(abs(thetaB))) = ' num2str(maxval)])
-th = th ./ (maxval * scale);
+if (maxval ~= 0)
+	th = th ./ (maxval * scale);
+end
 nc{'thetaB'}(:) = th;
 
 close(nc);
