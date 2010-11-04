@@ -110,7 +110,7 @@ echo "   ===============================================" >> \${logmem}
 \cp -f \${dir_src}/fortran/sqg_2b.f90   .
 
 # Copy theta and tracer init files
-\cp -f \${dir_src}/matlab/th_init.nc_${exp_type} .
+\cp -f \${dir_src}/matlab/th_init.nc_${exp_type} th_init.nc
 \cp -f \${dir_src}/matlab/tr_init.nc             .
 
 # Copy ensemble member control file 
