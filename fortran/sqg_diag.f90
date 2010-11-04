@@ -241,7 +241,7 @@ SUBROUTINE write_diag(n,thB,thT,trB,trT)
 		call check( nf90_def_dim(ncid, "nx",   2*kmax,   vardim(1)), routine_name )
 		call check( nf90_def_dim(ncid, "ny",   2*lmax,   vardim(2)), routine_name )
 		call check( nf90_def_dim(ncid, "time",   tmax,   vardim(3)), routine_name )
-		call check( nf90_def_dim(ncid, "copy", ens_size, vardim(4)), routine_name )
+		call check( nf90_def_dim(ncid, "copy", NF90_UNLIMITED, vardim(4)), routine_name )
 
 		call check( nf90_def_var(ncid, "thetaB", NF90_FLOAT, vardim,    varid), routine_name )
 		call check( nf90_put_att(ncid, varid, "description", "bottom potential temperature"), routine_name )
