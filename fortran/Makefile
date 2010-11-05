@@ -41,7 +41,9 @@ sQG_OBJ = $(SRC)/SPECTRAL.f90 \
 
 arBase_OBJ = $(SRC)/add_or_remove_base.f90
 
-sqg_diag_OBJ = $(SRC)/sqg_diag.f90
+sqg_stats_OBJ = $(SRC)/sqg_stats.f90
+
+sqg_diag_OBJ= $(SRC)/sqg_diag.f90
 #------------------------------------------------------------
 
 #------------------------------------------------------------
@@ -54,16 +56,21 @@ sQG : $(sQG_OBJ)
 add_or_remove_base : $(arBase_OBJ)
 	$(F90) $(FFLAGS) -o $(BIN)/add_or_remove_base $(arBase_OBJ) $(NCFLAGS)
 
+sqg_stats: $(sqg_stats_OBJ)
+	$(F90) $(FFLAGS) -o $(BIN)/sqg_stats $(sqg_stats_OBJ) $(NCFLAGS)
+
 sqg_diag: $(sqg_diag_OBJ)
 	$(F90) $(FFLAGS) -o $(BIN)/sqg_diag $(sqg_diag_OBJ) $(NCFLAGS)
 
 all: sQG \
      add_or_remove_base \
+     sqg_stats \
      sqg_diag
 
 clean:
 	$(RM) $(SRC)/*.o $(RM) $(SRC)/*.mod \
 $(RM) $(BIN)/sQG   \
 $(RM) $(BIN)/add_or_remove_base \
+$(RM) $(BIN)/sqg_stats \
 $(RM) $(BIN)/sqg_diag
 #------------------------------------------------------------
