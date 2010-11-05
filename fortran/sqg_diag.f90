@@ -144,8 +144,8 @@ PROGRAM sqg_diag
 	deallocate(thxyB_sum)  ; deallocate(thxyT_sum)
 	deallocate(trxyB_sum)  ; deallocate(trxyT_sum)
 	
-	call write_diag_STATS(thxyB_mean,   thxyT_mean,   trxyB_mean,   trxyT_mean, &
-	                      thxyB_spread, thxyT_spread, trxyB_spread, trxyT_spread)
+	call write_diag(ens_size+1,thxyB_mean,  thxyT_mean,  trxyB_mean,  trxyT_mean)
+	call write_diag(ens_size+2,thxyB_spread,thxyT_spread,trxyB_spread,trxyT_spread)
 
 	deallocate(thxyB_mean)   ; deallocate(thxyT_mean)
 	deallocate(trxyB_mean)   ; deallocate(trxyT_mean)
@@ -228,9 +228,10 @@ SUBROUTINE write_diag(n,thB,thT,trB,trT)
 
 	integer,                              intent(in)  :: n
 	real, dimension(2*kmax,2*lmax, tmax), intent (in) :: thB,thT,trB,trT
-	integer                      :: ncid, varid, vardim(4), start(4), count(4)
+	integer                      :: ncid, varid, vardim(4), start(4), count(4), mddim
 	character(len=64), parameter :: diag_file = 'smat_diag.nc'
 	character(len=64), parameter :: routine_name = 'write_diag'
+	character(len=64)            :: copy_string
 
 	if ( n == 1 ) then
 	
@@ -238,30 +239,47 @@ SUBROUTINE write_diag(n,thB,thT,trB,trT)
 
 		call check( nf90_create(trim(adjustl(diag_file)), NF90_CLOBBER .or. NF90_64BIT_OFFSET, ncid), routine_name )
 	
-		call check( nf90_def_dim(ncid, "nx",   2*kmax,   vardim(1)), routine_name )
-		call check( nf90_def_dim(ncid, "ny",   2*lmax,   vardim(2)), routine_name )
-		call check( nf90_def_dim(ncid, "time",   tmax,   vardim(3)), routine_name )
-		call check( nf90_def_dim(ncid, "copy", NF90_UNLIMITED, vardim(4)), routine_name )
+		call check( nf90_def_dim(ncid, "nx",       2*kmax, vardim(1)), routine_name )
+		call check( nf90_def_dim(ncid, "ny",       2*lmax, vardim(2)), routine_name )
+		call check( nf90_def_dim(ncid, "time",       tmax, vardim(3)), routine_name )
+		call check( nf90_def_dim(ncid, "copy", ens_size+2, vardim(4)), routine_name )
+		call check( nf90_def_dim(ncid, "metadatalength", 64,   mddim), routine_name )
 
+		call check( nf90_def_var(ncid, "copy", NF90_INT, vardim(4),     varid), routine_name )
+		call check( nf90_def_var(ncid, "CopyMetaData", NF90_CHAR, (/mddim, vardim(4)/), varid), routine_name )
 		call check( nf90_def_var(ncid, "thetaB", NF90_FLOAT, vardim,    varid), routine_name )
 		call check( nf90_put_att(ncid, varid, "description", "bottom potential temperature"), routine_name )
 		call check( nf90_def_var(ncid, "thetaT", NF90_FLOAT, vardim,    varid), routine_name )
-		call check( nf90_put_att(ncid, varid, "description", "potential temperature"), routine_name )
+		call check( nf90_put_att(ncid, varid, "description", "toppom potential temperature"), routine_name )
 		call check( nf90_def_var(ncid, "tracerB", NF90_FLOAT, vardim,    varid), routine_name )
 		call check( nf90_put_att(ncid, varid, "description", "bottom tracer"), routine_name )
 		call check( nf90_def_var(ncid, "tracerT", NF90_FLOAT, vardim,    varid), routine_name )
 		call check( nf90_put_att(ncid, varid, "description", "toppom tracer"), routine_name )
+		
+		call check( nf90_put_att(ncid, NF90_GLOBAL, "ens_size", ens_size), routine_name )
 
 		call check( nf90_enddef(ncid), routine_name )
 		call check (nf90_close(ncid),  routine_name )
 
 	endif
 
+	if ( n <= ens_size) then
+		write(copy_string,'(a15, 1X, i6)') 'ensemble member', n
+	elseif ( n == ens_size + 1 ) then
+		write(copy_string,'(a13)') 'ensemble mean'
+	elseif ( n == ens_size + 2 ) then
+		write(copy_string,'(a15)') 'ensemble spread'
+	endif
+
 	start(1) = 1      ; start(2) = 1      ; start(3) = 1    ; start(4) = n
 	count(1) = 2*kmax ; count(2) = 2*lmax ; count(3) = tmax ; count(4) = 1
-
+	
 	call check( nf90_open(trim(adjustl(diag_file)), NF90_WRITE, ncid), routine_name )
 
+	call check( nf90_inq_varid(ncid, "copy",      varid), routine_name )
+	call check( nf90_put_var(ncid, varid, n, (/start(4)/)), routine_name )
+	call check( nf90_inq_varid(ncid, "CopyMetaData", varid), routine_name )
+	call check( nf90_put_var(ncid, varid, copy_string, (/start(1), start(4)/)), routine_name )
 	call check( nf90_inq_varid(ncid, "thetaB",    varid ), routine_name )
 	call check( nf90_put_var(ncid, varid, thB, start, count), routine_name )
 	call check( nf90_inq_varid(ncid, "thetaT",    varid), routine_name )
@@ -271,74 +289,10 @@ SUBROUTINE write_diag(n,thB,thT,trB,trT)
 	call check( nf90_inq_varid(ncid, "tracerT",   varid), routine_name )
 	call check( nf90_put_var(ncid, varid, trT, start, count), routine_name )
 	
-	call check (nf90_close(ncid), routine_name )
+	call check( nf90_close(ncid), routine_name )
   
 	return
 end SUBROUTINE write_diag
-
-SUBROUTINE write_diag_STATS(thBm,thTm,trBm,trTm,thBs,thTs,trBs,trTs)
-
-  IMPLICIT NONE
-
-  real, dimension(2*kmax,2*lmax, tmax), intent (in) :: thBm,thTm,thBs,thTs
-  real, dimension(2*kmax,2*lmax, tmax), intent (in) :: trBm,trTm,trBs,trTs
-	integer                      :: ncid, varid, vardim(3)
-	character(len=64)            :: diag_file = 'smat_stats.nc'
-	character(len=64), parameter :: routine_name = 'write_diag_STATS'
-
-	if(debug) print*,'writing data to   ... ',  trim(adjustl(diag_file))
-
-	call check( nf90_create(trim(adjustl(diag_file)), NF90_CLOBBER .or. NF90_64BIT_OFFSET, ncid), routine_name )
-
-	call check( nf90_def_dim(ncid, "nx",   2*kmax, vardim(1)), routine_name )
-	call check( nf90_def_dim(ncid, "ny",   2*lmax, vardim(2)), routine_name )
-	call check( nf90_def_dim(ncid, "time",   tmax, vardim(3)), routine_name )
-
-	call check( nf90_def_var(ncid, "thetaB_mean", NF90_FLOAT, vardim,    varid), routine_name )
-	call check( nf90_put_att(ncid, varid, "description", "ensemble mean bottom potential temperature"), routine_name )
-	call check( nf90_def_var(ncid, "thetaT_mean", NF90_FLOAT, vardim,    varid), routine_name )
-	call check( nf90_put_att(ncid, varid, "description", "ensemble mean toppom potential temperature"), routine_name )
-	call check( nf90_def_var(ncid, "tracerB_mean", NF90_FLOAT, vardim,    varid), routine_name )
-	call check( nf90_put_att(ncid, varid, "description", "ensemble mean bottom tracer"), routine_name )
-	call check( nf90_def_var(ncid, "tracerT_mean", NF90_FLOAT, vardim,    varid), routine_name )
-	call check( nf90_put_att(ncid, varid, "description", "ensemble mean toppom tracer"), routine_name )
-	call check( nf90_def_var(ncid, "thetaB_spread", NF90_FLOAT, vardim,    varid), routine_name )
-	call check( nf90_put_att(ncid, varid, "description", "ensemble spread bottom potential temperature"), routine_name )
-	call check( nf90_def_var(ncid, "thetaT_spread", NF90_FLOAT, vardim,    varid), routine_name )
-	call check( nf90_put_att(ncid, varid, "description", "ensemble spread toppom potential temperature"), routine_name )
-	call check( nf90_def_var(ncid, "tracerB_spread", NF90_FLOAT, vardim,    varid), routine_name )
-	call check( nf90_put_att(ncid, varid, "description", "ensemble spread bottom tracer"), routine_name )
-	call check( nf90_def_var(ncid, "tracerT_spread", NF90_FLOAT, vardim,    varid), routine_name )
-	call check( nf90_put_att(ncid, varid, "description", "ensemble spread toppom tracer"), routine_name )
-	
-	call check( nf90_put_att(ncid, NF90_GLOBAL, "ens_size", ens_size), routine_name )
-
-	call check( nf90_enddef(ncid), routine_name )
-	call check( nf90_close(ncid), routine_name  )
-
-	call check( nf90_open(trim(adjustl(diag_file)), NF90_WRITE, ncid), routine_name )
-
-	call check( nf90_inq_varid(ncid, "thetaB_mean",    varid), routine_name )
-	call check( nf90_put_var(ncid, varid, thBm), routine_name )
-	call check( nf90_inq_varid(ncid, "thetaT_mean",    varid), routine_name )
-	call check( nf90_put_var(ncid, varid, thTm), routine_name )
-	call check( nf90_inq_varid(ncid, "tracerB_mean",   varid), routine_name )
-	call check( nf90_put_var(ncid, varid, trBm), routine_name )
-	call check( nf90_inq_varid(ncid, "tracerT_mean",   varid), routine_name )
-	call check( nf90_put_var(ncid, varid, trTm), routine_name )
-	call check( nf90_inq_varid(ncid, "thetaB_spread",  varid), routine_name )
-	call check( nf90_put_var(ncid, varid, thBs), routine_name )
-	call check( nf90_inq_varid(ncid, "thetaT_spread",  varid), routine_name )
-	call check( nf90_put_var(ncid, varid, thTs), routine_name )
-	call check( nf90_inq_varid(ncid, "tracerB_spread", varid), routine_name )
-	call check( nf90_put_var(ncid, varid, trBs), routine_name )
-	call check( nf90_inq_varid(ncid, "tracerT_spread", varid), routine_name )
-	call check( nf90_put_var(ncid, varid, trTs), routine_name )
-	
-	call check( nf90_close(ncid), routine_name  )
-
-  return
-end SUBROUTINE write_diag_STATS
 
 subroutine check(ierr, routine_name)
 
