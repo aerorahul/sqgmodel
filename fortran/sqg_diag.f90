@@ -29,6 +29,7 @@ PROGRAM sqg_diag
 	diagfile = trim(adjustl(fpth)) // 'smat_' // trim(adjustl(etype)) // '_diag.nc'
 	
 	do n = 1, ens_size
+
 		write( nchar, '(i5.5)' ) n
 		
 		if ( mod(n,100) == 0 ) write(6,'(a11, 1x, i6)') ' ... member', n 
