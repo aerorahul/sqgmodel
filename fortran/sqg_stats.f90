@@ -60,7 +60,7 @@ PROGRAM sqg_stats
 	print*,'calculating ensemble mean ...'
 	do n = 1, ens_size
 
-		if ( mod(n,10) == 0 ) write(6,'(a11, 1x, i6)') ' ... member', n 
+		if ( mod(n,100) == 0 ) write(6,'(a11, 1x, i6)') ' ... member', n 
 
 		call read_smat(ncidC,n,thxyB_c,thxyT_c,trxyB_c,trxyT_c)
 		call read_smat(ncidP,n,thxyB_p,thxyT_p,trxyB_p,trxyT_p)
@@ -106,7 +106,7 @@ PROGRAM sqg_stats
 	print*,'calculating ensemble spread ...'
 	do n = 1, ens_size
 
-		if ( mod(n,10) == 0 ) write(6,'(a11, 1x, i6)') ' ... member', n 
+		if ( mod(n,100) == 0 ) write(6,'(a11, 1x, i6)') ' ... member', n 
 
 		call read_smat(ncidC,n,thxyB_c,thxyT_c,trxyB_c,trxyT_c)
 		call read_smat(ncidP,n,thxyB_p,thxyT_p,trxyB_p,trxyT_p)

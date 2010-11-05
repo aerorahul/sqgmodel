@@ -31,7 +31,7 @@ PROGRAM sqg_diag
 	do n = 1, ens_size
 		write( nchar, '(i5.5)' ) n
 		
-		if ( mod(n,100) == 0 ) print*,' ... member ', trim(adjustl(nchar))
+		if ( mod(n,100) == 0 ) write(6,'(a11, 1x, i6)') ' ... member', n 
 
 		smatfile = trim(adjustl(fpth)) // 'smat_' // trim(adjustl(etype)) // '_' // trim(adjustl(nchar)) // '.nc'
 
