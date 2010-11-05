@@ -60,8 +60,6 @@ PROGRAM sqg_diag
 
 	enddo
 
-	call transfer_ga(smatfile,diagfile)
-
 	write(6,'(a13)') 'sqg_diag done'
 	
 	stop
@@ -174,6 +172,8 @@ SUBROUTINE write_diag(n,thB,thT,trB,trT)
 
 		call check( nf90_enddef(ncid), routine_name )
 		call check (nf90_close(ncid),  routine_name )
+
+		call transfer_ga(smatfile,diagfile)
 
 	endif
 

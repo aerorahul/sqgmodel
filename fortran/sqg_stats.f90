@@ -146,8 +146,6 @@ PROGRAM sqg_stats
 	call check( nf90_close(ncidC), 'sqg_stats')
 	call check( nf90_close(ncidP), 'sqg_stats')
 	
-	call transfer_ga(smatCfile,smatDfile)
-
 	write(6,'(a14)') 'sqg_stats done'
 
 	stop
@@ -265,6 +263,8 @@ SUBROUTINE write_diag(n,thB,thT,trB,trT)
 
 		call check( nf90_enddef(ncid), routine_name )
 		call check (nf90_close(ncid),  routine_name )
+
+		call transfer_ga(smatCfile,smatDfile)
 
 	endif
 
