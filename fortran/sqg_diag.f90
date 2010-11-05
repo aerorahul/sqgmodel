@@ -21,7 +21,7 @@ PROGRAM sqg_diag
   real, allocatable, dimension(:,:,:) :: thxyB_sum, thxyT_sum, trxyB_sum, trxyT_sum
   real, allocatable, dimension(:,:,:) :: thxyB_mean, thxyT_mean, trxyB_mean, trxyT_mean
   real, allocatable, dimension(:,:,:) :: thxyB_spread, thxyT_spread, trxyB_spread, trxyT_spread
-	character(len=1024)                 :: fpth_c, fpth_p, smatCfile, smatPfile
+	character(len=1024)                 :: fpth_c, fpth_p, smatCfile, smatPfile, diag_file
 	character(len=5)                    :: nchar
 	
 	print*, 'ensemble size:'
@@ -30,6 +30,8 @@ PROGRAM sqg_diag
 	read*,  fpth_c
 	print*, 'path to perturbed experiment files:'
 	read*,  fpth_p
+	print*, 'name of output diag file:'
+	read*,  diag_file
 	
 	print*,'calculating ensemble mean ...'
 	do n = 1, ens_size
@@ -233,9 +235,8 @@ SUBROUTINE write_diag(n,thB,thT,trB,trT)
 	integer,                              intent(in)  :: n
 	real, dimension(2*kmax,2*lmax, tmax), intent (in) :: thB,thT,trB,trT
 	integer                      :: ncid, varid, vardim(4), start(4), count(4), mddim
-	character(len=64), parameter :: diag_file = 'smat_diag.nc'
-	character(len=64), parameter :: routine_name = 'write_diag'
 	character(len=64)            :: copy_string
+	character(len=64), parameter :: routine_name = 'write_diag'
 
 	if ( n == 1 ) then
 	
@@ -306,7 +307,7 @@ subroutine check(ierr, routine_name)
 
 	if (ierr /= nf90_noerr) then
   	print*,'Netcdf error: ', trim(adjustl(nf90_strerror(ierr)))
-  	print*,'in ', trim(adjustl(routine_name))
+  	print*,'in subroutine ', trim(adjustl(routine_name))
 	  stop
 	endif
 
