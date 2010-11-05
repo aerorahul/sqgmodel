@@ -6,7 +6,7 @@
 ! $Id$
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-PROGRAM sqg_diag
+PROGRAM sqg_stats
 
 	USE NETCDF
 
@@ -314,4 +314,4 @@ subroutine check(ierr, routine_name)
   return
 end subroutine check
   
-END PROGRAM sqg_diag
+END PROGRAM sqg_stats
