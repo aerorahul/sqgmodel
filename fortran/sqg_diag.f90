@@ -59,6 +59,8 @@ PROGRAM sqg_diag
 		endif
 
 	enddo
+
+	call transfer_ga(smatfile,diagfile)
 	
 	stop
 
@@ -207,6 +209,40 @@ SUBROUTINE write_diag(n,thB,thT,trB,trT)
 	return
 end SUBROUTINE write_diag
 
+SUBROUTINE transfer_ga(fromfile,tofile)
+
+	implicit none
+	character(len=*), intent (in)  :: fromfile, tofile
+	character(len=64), parameter   :: routine_name = 'transfer_ga'
+	integer                        :: ncidf, ncidt
+
+	call check( nf90_open(trim(adjustl(fromfile)), NF90_NOWRITE, ncidf), routine_name )
+	call check( nf90_open(trim(adjustl(tofile)),   NF90_WRITE,   ncidt), routine_name )
+	
+	call check( nf90_redef(ncidt), routine_name )
+
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'model',ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'dt',   ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'iplot',ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'XL',   ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'YL',   ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'H',    ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'Ross', ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'gamma',ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'n',    ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'tau',  ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'trl',  ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'amu',  ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'shear',ncidt,NF90_GLOBAL), routine_name )
+
+	call check( nf90_enddef(ncidt), routine_name )
+	
+	call check( nf90_close(ncidf), routine_name )
+	call check( nf90_close(ncidt), routine_name )
+  
+	return
+end SUBROUTINE transfer_ga 
+  
 subroutine check(ierr, routine_name)
 
 	implicit none

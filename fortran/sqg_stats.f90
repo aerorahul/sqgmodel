@@ -15,58 +15,55 @@ PROGRAM sqg_stats
 	logical, parameter                  :: debug = .false.
 
 	integer                             :: kmax, lmax, tmax, t, n, ens_size
+	integer                             :: ncidC, ncidP
   real, allocatable, dimension(:,:,:) :: thxyB_c, thxyT_c, trxyB_c, trxyT_c
   real, allocatable, dimension(:,:,:) :: thxyB_p, thxyT_p, trxyB_p, trxyT_p
   real, allocatable, dimension(:,:,:) :: thxyB, thxyT, trxyB, trxyT
   real, allocatable, dimension(:,:,:) :: thxyB_sum, thxyT_sum, trxyB_sum, trxyT_sum
   real, allocatable, dimension(:,:,:) :: thxyB_mean, thxyT_mean, trxyB_mean, trxyT_mean
   real, allocatable, dimension(:,:,:) :: thxyB_spread, thxyT_spread, trxyB_spread, trxyT_spread
-	character(len=1024)                 :: fpth_c, fpth_p, smatCfile, smatPfile, diag_file
-	character(len=5)                    :: nchar
+	character(len=1024)                 :: fpth_c, fpth_p, smatCfile, smatPfile, smatDfile
 	
-	print*, 'ensemble size:'
-	read*,  ens_size
-	print*, 'path to control experiment files:'
+	print*, 'path to control experiment diag file:'
 	read*,  fpth_c
-	print*, 'path to perturbed experiment files:'
+	print*, 'path to perturbed experiment diag file:'
 	read*,  fpth_p
-	print*, 'name of output diag file:'
-	read*,  diag_file
+	
+	smatCfile = trim(adjustl(fpth_c)) // 'smat_C_diag.nc'
+	smatPfile = trim(adjustl(fpth_p)) // 'smat_P_diag.nc'
+	smatDfile = trim(adjustl(fpth_p)) // 'smat_D_diag.nc'
+
+	if ( (.not. file_exist(smatCfile))  .and. ( .not. file_exist(smatPfile)) ) then
+		print*, 'Both ', trim(adjustl(smatCfile)), ' and ', trim(adjustl(smatPfile)), ' must exist'
+		stop
+	endif
+
+	call check_smat()
+	
+	call read_dimensions(smatCfile,ens_size,kmax,lmax,tmax)
+
+	allocate( thxyB_c(  2*kmax,2*lmax,tmax) ) ; allocate( thxyT_c(  2*kmax,2*lmax,tmax) )
+	allocate( trxyB_c(  2*kmax,2*lmax,tmax) ) ; allocate( trxyT_c(  2*kmax,2*lmax,tmax) )
+	allocate( thxyB_p(  2*kmax,2*lmax,tmax) ) ; allocate( thxyT_p(  2*kmax,2*lmax,tmax) )
+	allocate( trxyB_p(  2*kmax,2*lmax,tmax) ) ; allocate( trxyT_p(  2*kmax,2*lmax,tmax) )
+	allocate( thxyB(    2*kmax,2*lmax,tmax) ) ; allocate( thxyT(    2*kmax,2*lmax,tmax) )
+	allocate( trxyB(    2*kmax,2*lmax,tmax) ) ; allocate( trxyT(    2*kmax,2*lmax,tmax) )
+	allocate( thxyB_sum(2*kmax,2*lmax,tmax) ) ; allocate( thxyT_sum(2*kmax,2*lmax,tmax) )
+	allocate( trxyB_sum(2*kmax,2*lmax,tmax) ) ; allocate( trxyT_sum(2*kmax,2*lmax,tmax) )
+
+	thxyB_sum = 0. ; thxyT_sum = 0.
+	trxyB_sum = 0. ; trxyT_sum = 0.
+
+	call check( nf90_open(trim(adjustl(smatCfile)), NF90_NOWRITE, ncidC), 'sqg_stats')
+	call check( nf90_open(trim(adjustl(smatPfile)), NF90_NOWRITE, ncidP), 'sqg_stats')
 	
 	print*,'calculating ensemble mean ...'
 	do n = 1, ens_size
-		write( nchar, '(i5.5)' ) n
-		
-		if ( mod(n,100) == 0 ) print*,' ... member ', trim(adjustl(nchar))
 
-		smatCfile = trim(adjustl(fpth_c)) // 'smat_C_' // trim(adjustl(nchar)) // '.nc'
-		smatPfile = trim(adjustl(fpth_p)) // 'smat_P_' // trim(adjustl(nchar)) // '.nc'
+		if ( mod(n,10) == 0 ) write(6,'(a11, 1x, i6)') ' ... member', n 
 
-		if ( (.not. file_exist(smatCfile))  .and. ( .not. file_exist(smatPfile)) ) then
-			print*, 'Both ', trim(adjustl(smatCfile)), ' and ', trim(adjustl(smatPfile)), ' must exist'
-			stop
-		endif
-
-		if ( n == 1 ) then
-
-			call read_dimensions(smatCfile,kmax,lmax,tmax)
-
-			allocate( thxyB_c(  2*kmax,2*lmax,tmax) ) ; allocate( thxyT_c(  2*kmax,2*lmax,tmax) )
-			allocate( trxyB_c(  2*kmax,2*lmax,tmax) ) ; allocate( trxyT_c(  2*kmax,2*lmax,tmax) )
-			allocate( thxyB_p(  2*kmax,2*lmax,tmax) ) ; allocate( thxyT_p(  2*kmax,2*lmax,tmax) )
-			allocate( trxyB_p(  2*kmax,2*lmax,tmax) ) ; allocate( trxyT_p(  2*kmax,2*lmax,tmax) )
-			allocate( thxyB(    2*kmax,2*lmax,tmax) ) ; allocate( thxyT(    2*kmax,2*lmax,tmax) )
-			allocate( trxyB(    2*kmax,2*lmax,tmax) ) ; allocate( trxyT(    2*kmax,2*lmax,tmax) )
-			allocate( thxyB_sum(2*kmax,2*lmax,tmax) ) ; allocate( thxyT_sum(2*kmax,2*lmax,tmax) )
-			allocate( trxyB_sum(2*kmax,2*lmax,tmax) ) ; allocate( trxyT_sum(2*kmax,2*lmax,tmax) )
-
-			thxyB_sum = 0. ; thxyT_sum = 0.
-			trxyB_sum = 0. ; trxyT_sum = 0.
-
-		endif
-
-		call read_smat(smatCfile,thxyB_c,thxyT_c,trxyB_c,trxyT_c)
-		call read_smat(smatPfile,thxyB_p,thxyT_p,trxyB_p,trxyT_p)
+		call read_smat(ncidC,n,thxyB_c,thxyT_c,trxyB_c,trxyT_c)
+		call read_smat(ncidP,n,thxyB_p,thxyT_p,trxyB_p,trxyT_p)
 
 		thxyB = thxyB_p - thxyB_c ; thxyT = thxyT_p - thxyT_c
 		trxyB = trxyB_p           ; trxyT = trxyT_p
@@ -76,17 +73,15 @@ PROGRAM sqg_stats
 		thxyB_sum = thxyB_sum + thxyB ; thxyT_sum = thxyT_sum + thxyT
 		trxyB_sum = trxyB_sum + trxyB ; trxyT_sum = trxyT_sum + trxyT
 
-		if ( n == ens_size ) then
-			deallocate(thxyB_c) ; deallocate(thxyT_c)
-			deallocate(trxyB_c) ; deallocate(trxyT_c)
-			deallocate(thxyB_p) ; deallocate(thxyT_p)
-			deallocate(trxyB_p) ; deallocate(trxyT_p)
-			deallocate(thxyB)   ; deallocate(thxyT)
-			deallocate(trxyB)   ; deallocate(trxyT)
-		endif
-
 	enddo
 	
+	deallocate(thxyB_c) ; deallocate(thxyT_c)
+	deallocate(trxyB_c) ; deallocate(trxyT_c)
+	deallocate(thxyB_p) ; deallocate(thxyT_p)
+	deallocate(trxyB_p) ; deallocate(trxyT_p)
+	deallocate(thxyB)   ; deallocate(thxyT)
+	deallocate(trxyB)   ; deallocate(trxyT)
+
 	allocate( thxyB_mean(2*kmax,2*lmax,tmax) ) ; allocate( thxyT_mean(2*kmax,2*lmax,tmax) )
 	allocate( trxyB_mean(2*kmax,2*lmax,tmax) ) ; allocate( trxyT_mean(2*kmax,2*lmax,tmax) )
 
@@ -96,33 +91,25 @@ PROGRAM sqg_stats
 	deallocate(thxyB_sum) ; deallocate(thxyT_sum)
 	deallocate(trxyB_sum) ; deallocate(trxyT_sum)
 
+	allocate( thxyB_c(  2*kmax,2*lmax,tmax) ) ; allocate( thxyT_c(  2*kmax,2*lmax,tmax) )
+	allocate( trxyB_c(  2*kmax,2*lmax,tmax) ) ; allocate( trxyT_c(  2*kmax,2*lmax,tmax) )
+	allocate( thxyB_p(  2*kmax,2*lmax,tmax) ) ; allocate( thxyT_p(  2*kmax,2*lmax,tmax) )
+	allocate( trxyB_p(  2*kmax,2*lmax,tmax) ) ; allocate( trxyT_p(  2*kmax,2*lmax,tmax) )
+	allocate( thxyB(    2*kmax,2*lmax,tmax) ) ; allocate( thxyT(    2*kmax,2*lmax,tmax) )
+	allocate( trxyB(    2*kmax,2*lmax,tmax) ) ; allocate( trxyT(    2*kmax,2*lmax,tmax) )
+	allocate( thxyB_sum(2*kmax,2*lmax,tmax) ) ; allocate( thxyT_sum(2*kmax,2*lmax,tmax) )
+	allocate( trxyB_sum(2*kmax,2*lmax,tmax) ) ; allocate( trxyT_sum(2*kmax,2*lmax,tmax) )
+
+	thxyB_sum  = 0. ; thxyT_sum  = 0.
+	trxyB_sum  = 0. ; trxyT_sum  = 0.
+
 	print*,'calculating ensemble spread ...'
 	do n = 1, ens_size
-		write( nchar, '(i5.5)' ) n
-		
-		if ( mod(n,100) == 0 ) print*,' ... member ', trim(adjustl(nchar))
 
-		smatCfile = trim(adjustl(fpth_c)) // 'smat_C_' // trim(adjustl(nchar)) // '.nc'
-		smatPfile = trim(adjustl(fpth_p)) // 'smat_P_' // trim(adjustl(nchar)) // '.nc'
+		if ( mod(n,10) == 0 ) write(6,'(a11, 1x, i6)') ' ... member', n 
 
-		if ( n == 1 ) then
-			
-			allocate( thxyB_c(  2*kmax,2*lmax,tmax) ) ; allocate( thxyT_c(  2*kmax,2*lmax,tmax) )
-			allocate( trxyB_c(  2*kmax,2*lmax,tmax) ) ; allocate( trxyT_c(  2*kmax,2*lmax,tmax) )
-			allocate( thxyB_p(  2*kmax,2*lmax,tmax) ) ; allocate( thxyT_p(  2*kmax,2*lmax,tmax) )
-			allocate( trxyB_p(  2*kmax,2*lmax,tmax) ) ; allocate( trxyT_p(  2*kmax,2*lmax,tmax) )
-			allocate( thxyB(    2*kmax,2*lmax,tmax) ) ; allocate( thxyT(    2*kmax,2*lmax,tmax) )
-			allocate( trxyB(    2*kmax,2*lmax,tmax) ) ; allocate( trxyT(    2*kmax,2*lmax,tmax) )
-			allocate( thxyB_sum(2*kmax,2*lmax,tmax) ) ; allocate( thxyT_sum(2*kmax,2*lmax,tmax) )
-			allocate( trxyB_sum(2*kmax,2*lmax,tmax) ) ; allocate( trxyT_sum(2*kmax,2*lmax,tmax) )
-
-			thxyB_sum  = 0. ; thxyT_sum  = 0.
-			trxyB_sum  = 0. ; trxyT_sum  = 0.
-
-		endif
-
-		call read_smat(smatCfile,thxyB_c,thxyT_c,trxyB_c,trxyT_c)
-		call read_smat(smatPfile,thxyB_p,thxyT_p,trxyB_p,trxyT_p)
+		call read_smat(ncidC,n,thxyB_c,thxyT_c,trxyB_c,trxyT_c)
+		call read_smat(ncidP,n,thxyB_p,thxyT_p,trxyB_p,trxyT_p)
 
 		thxyB = thxyB_p - thxyB_c ; thxyT = thxyT_p - thxyT_c
 		trxyB = trxyB_p           ; trxyT = trxyT_p
@@ -130,17 +117,15 @@ PROGRAM sqg_stats
 		thxyB_sum = thxyB_sum + ( thxyB - thxyB_mean )**2 ; thxyT_sum = thxyT_sum + ( thxyT -	thxyT_mean )**2
 		trxyB_sum = trxyB_sum + ( trxyB - trxyB_mean )**2 ; trxyT_sum = trxyT_sum + ( trxyT - trxyT_mean )**2
 
-		if ( n == ens_size ) then
-			deallocate(thxyB_c) ; deallocate(thxyT_c)
-			deallocate(trxyB_c) ; deallocate(trxyT_c)
-			deallocate(thxyB_p) ; deallocate(thxyT_p)
-			deallocate(trxyB_p) ; deallocate(trxyT_p)
-			deallocate(thxyB)   ; deallocate(thxyT)
-			deallocate(trxyB)   ; deallocate(trxyT)
-		endif
-
 	enddo
 	
+	deallocate(thxyB_c) ; deallocate(thxyT_c)
+	deallocate(trxyB_c) ; deallocate(trxyT_c)
+	deallocate(thxyB_p) ; deallocate(thxyT_p)
+	deallocate(trxyB_p) ; deallocate(trxyT_p)
+	deallocate(thxyB)   ; deallocate(thxyT)
+	deallocate(trxyB)   ; deallocate(trxyT)
+
 	allocate( thxyB_spread(2*kmax,2*lmax,tmax) ) ; allocate( thxyT_spread(2*kmax,2*lmax,tmax) )
 	allocate( trxyB_spread(2*kmax,2*lmax,tmax) ) ; allocate( trxyT_spread(2*kmax,2*lmax,tmax) )
 
@@ -158,6 +143,9 @@ PROGRAM sqg_stats
 	deallocate(thxyB_spread) ; deallocate(thxyT_spread)
 	deallocate(trxyB_spread) ; deallocate(trxyT_spread)
 	
+	call check( nf90_close(ncidC), 'sqg_stats')
+	call check( nf90_close(ncidP), 'sqg_stats')
+	
 	stop
 
 CONTAINS
@@ -173,16 +161,18 @@ FUNCTION file_exist(filename)
   return
 end FUNCTION file_exist
 
-SUBROUTINE read_dimensions(filename,kmax_out,lmax_out,tmax_out)
+SUBROUTINE read_dimensions(filename,copy_out,kmax_out,lmax_out,tmax_out)
 	
 	implicit none
 	character(len=*), intent (in)  :: filename
-	integer,          intent (out) :: kmax_out, lmax_out, tmax_out
+	integer,          intent (out) :: copy_out,kmax_out, lmax_out, tmax_out
 	integer                        :: ncid, dimid, twokmax, twolmax
 	character(len=64), parameter   :: routine_name = 'read_dimensions'
 
 	if(debug) print*,'reading data from ... ',  trim(adjustl(filename))
 	call check( nf90_open(trim(adjustl(filename)), NF90_WRITE, ncid), routine_name )
+	call check( nf90_inq_dimid(ncid, 'copy', dimid), routine_name )
+	call check( nf90_inquire_dimension(ncid, dimid, len = copy_out), routine_name )
 	call check( nf90_inq_dimid(ncid, 'time', dimid), routine_name )
 	call check( nf90_inquire_dimension(ncid, dimid, len = tmax_out), routine_name )
 	call check( nf90_inq_dimid(ncid, 'nx', dimid), routine_name )
@@ -196,34 +186,39 @@ SUBROUTINE read_dimensions(filename,kmax_out,lmax_out,tmax_out)
 	return
 end SUBROUTINE read_dimensions
 
-SUBROUTINE read_smat(filename,thB,thT,trB,trT)
+SUBROUTINE read_smat(ncid,n,thB,thT,trB,trT)
 
   IMPLICIT NONE
 	
-	character(len=*),                    intent (in)  :: filename
-  real, dimension(2*kmax,2*lmax,tmax), intent (out) :: thB,thT,trB,trT
-	integer                      :: ncid, varid, ierr
+	integer,intent(in)                                :: ncid, n
+  real, dimension(2*kmax,2*lmax,tmax), intent (out) :: thB, thT, trB, trT
+  real, dimension(2*kmax,2*lmax,tmax,1)             :: val
+	integer                      :: varid, ierr, start(4), count(4)
 	character(len=64), parameter :: routine_name = 'read_smat'
-
+	
+	val = 0.
   thB = 0.; thT = 0.
   trB = 0.; trT = 0.
+	
+	start(1) = 1      ; start(2) = 1      ; start(3) = 1    ; start(4) = n
+	count(1) = 2*kmax ; count(2) = 2*lmax ; count(3) = tmax ; count(4) = 1
 
-	if(debug) print*,'reading data from ... ', trim(adjustl(filename))
-	call check( nf90_open(trim(adjustl(filename)), NF90_NOWRITE, ncid), routine_name )
 	call check( nf90_inq_varid(ncid, 'thetaB', varid), routine_name )
-	call check( nf90_get_var(ncid, varid, thB), routine_name )
+	call check( nf90_get_var(ncid, varid, val, start, count), routine_name )
+	thB(:,:,:) = val(:,:,:,1);
 	call check( nf90_inq_varid(ncid, 'thetaT', varid), routine_name )
-	call check( nf90_get_var(ncid, varid, thT), routine_name )
+	call check( nf90_get_var(ncid, varid, val, start, count), routine_name )
+	thT(:,:,:) = val(:,:,:,1);
 	
 	ierr = nf90_inq_varid(ncid, 'tracerB', varid)
 	if ( ierr == nf90_noerr ) then
 		call check( nf90_inq_varid(ncid, 'tracerB', varid), routine_name )
-		call check( nf90_get_var(ncid, varid, trB), routine_name )
+		call check( nf90_get_var(ncid, varid, val, start, count), routine_name )
+		trB(:,:,:) = val(:,:,:,1);
 		call check( nf90_inq_varid(ncid, 'tracerT', varid), routine_name )
-		call check( nf90_get_var(ncid, varid, trT), routine_name )
+		call check( nf90_get_var(ncid, varid, val, start, count), routine_name )
+		trT(:,:,:) = val(:,:,:,1);
 	endif
-
-	call check (nf90_close(ncid), routine_name )
 
   return
 end SUBROUTINE read_smat
@@ -240,9 +235,9 @@ SUBROUTINE write_diag(n,thB,thT,trB,trT)
 
 	if ( n == 1 ) then
 	
-		if(debug) print*,'creating file ... ', trim(adjustl(diag_file))
+		if(debug) print*,'creating file ... ', trim(adjustl(smatDfile))
 
-		call check( nf90_create(trim(adjustl(diag_file)), NF90_CLOBBER .or. NF90_64BIT_OFFSET, ncid), routine_name )
+		call check( nf90_create(trim(adjustl(smatDfile)), NF90_CLOBBER .or. NF90_64BIT_OFFSET, ncid), routine_name )
 	
 		call check( nf90_def_dim(ncid, "nx",       2*kmax, vardim(1)), routine_name )
 		call check( nf90_def_dim(ncid, "ny",       2*lmax, vardim(2)), routine_name )
@@ -261,7 +256,8 @@ SUBROUTINE write_diag(n,thB,thT,trB,trT)
 		call check( nf90_def_var(ncid, "tracerT", NF90_FLOAT, vardim,    varid), routine_name )
 		call check( nf90_put_att(ncid, varid, "description", "toppom tracer"), routine_name )
 		
-		call check( nf90_put_att(ncid, NF90_GLOBAL, "ens_size", ens_size), routine_name )
+		call check( nf90_put_att(ncid, NF90_GLOBAL, "title", 'Perturbation - Control'), routine_name )
+		call check( nf90_put_att(ncid, NF90_GLOBAL, "ens_size", ens_size),              routine_name )
 
 		call check( nf90_enddef(ncid), routine_name )
 		call check (nf90_close(ncid),  routine_name )
@@ -279,7 +275,7 @@ SUBROUTINE write_diag(n,thB,thT,trB,trT)
 	start(1) = 1      ; start(2) = 1      ; start(3) = 1    ; start(4) = n
 	count(1) = 2*kmax ; count(2) = 2*lmax ; count(3) = tmax ; count(4) = 1
 	
-	call check( nf90_open(trim(adjustl(diag_file)), NF90_WRITE, ncid), routine_name )
+	call check( nf90_open(trim(adjustl(smatDfile)), NF90_WRITE, ncid), routine_name )
 
 	call check( nf90_inq_varid(ncid, "copy",      varid), routine_name )
 	call check( nf90_put_var(ncid, varid, n, (/start(4)/)), routine_name )
@@ -298,6 +294,132 @@ SUBROUTINE write_diag(n,thB,thT,trB,trT)
   
 	return
 end SUBROUTINE write_diag
+
+SUBROUTINE check_smat()
+	
+	implicit none
+	integer :: ncidC, ncidP, dimid
+	integer :: ivalC, ivalP
+	real    :: rvalC, rvalP
+	character(len=64)            :: dim_name
+	character(len=64), parameter :: routine_name = 'check_smat'
+	
+	call check( nf90_open(trim(adjustl(smatCfile)), NF90_NOWRITE, ncidC), routine_name )
+	call check( nf90_open(trim(adjustl(smatPfile)), NF90_NOWRITE, ncidP), routine_name )
+
+	call check( nf90_inq_dimid(ncidC,'nx',dimid), routine_name )  
+	call check( nf90_inquire_dimension(ncidC,dimid,dim_name,ivalC), routine_name )  
+	call check( nf90_inq_dimid(ncidP,'nx',dimid), routine_name )  
+	call check( nf90_inquire_dimension(ncidP,dimid,dim_name,ivalP), routine_name )  
+	call compare_integers(ivalC, ivalP, 'nx')
+	
+	call check( nf90_inq_dimid(ncidC,'ny',dimid), routine_name )  
+	call check( nf90_inquire_dimension(ncidC,dimid,dim_name,ivalC), routine_name )  
+	call check( nf90_inq_dimid(ncidP,'ny',dimid), routine_name )  
+	call check( nf90_inquire_dimension(ncidP,dimid,dim_name,ivalP), routine_name )  
+	call compare_integers(ivalC, ivalP, 'ny')
+	
+	call check( nf90_inq_dimid(ncidC,'time',dimid), routine_name )  
+	call check( nf90_inquire_dimension(ncidC,dimid,dim_name,ivalC), routine_name )  
+	call check( nf90_inq_dimid(ncidP,'time',dimid), routine_name )  
+	call check( nf90_inquire_dimension(ncidP,dimid,dim_name,ivalP), routine_name )  
+	call compare_integers(ivalC, ivalP, 'time')
+	
+	call check( nf90_inq_dimid(ncidC,'copy',dimid), routine_name )  
+	call check( nf90_inquire_dimension(ncidC,dimid,dim_name,ivalC), routine_name )  
+	call check( nf90_inq_dimid(ncidP,'copy',dimid), routine_name )  
+	call check( nf90_inquire_dimension(ncidP,dimid,dim_name,ivalP), routine_name )  
+	call compare_integers(ivalC, ivalP, 'copy')
+	
+	call check( nf90_get_att(ncidC,NF90_GLOBAL,'ens_size',ivalC), routine_name )  
+	call check( nf90_get_att(ncidP,NF90_GLOBAL,'ens_size',ivalP), routine_name )
+	call compare_integers(ivalC, ivalP, 'ens_size')
+	
+	call check( nf90_get_att(ncidC,NF90_GLOBAL,'model',ivalC), routine_name )  
+	call check( nf90_get_att(ncidP,NF90_GLOBAL,'model',ivalP), routine_name )
+	call compare_integers(ivalC, ivalP, 'model')
+	
+	call check( nf90_get_att(ncidC,NF90_GLOBAL,'dt',rvalC), routine_name )  
+	call check( nf90_get_att(ncidP,NF90_GLOBAL,'dt',rvalP), routine_name )
+	call compare_reals(rvalC, rvalP, 'dt')
+	
+	call check( nf90_get_att(ncidC,NF90_GLOBAL,'iplot',ivalC), routine_name )  
+	call check( nf90_get_att(ncidP,NF90_GLOBAL,'iplot',ivalP), routine_name )
+	call compare_integers(ivalC, ivalP, 'iplot')
+	
+	call check( nf90_get_att(ncidC,NF90_GLOBAL,'XL',rvalC), routine_name )  
+	call check( nf90_get_att(ncidP,NF90_GLOBAL,'XL',rvalP), routine_name )
+	call compare_reals(rvalC, rvalP, 'XL')
+	
+	call check( nf90_get_att(ncidC,NF90_GLOBAL,'YL',rvalC), routine_name )  
+	call check( nf90_get_att(ncidP,NF90_GLOBAL,'YL',rvalP), routine_name )
+	call compare_reals(rvalC, rvalP, 'YL')
+	
+	call check( nf90_get_att(ncidC,NF90_GLOBAL,'H',rvalC), routine_name )  
+	call check( nf90_get_att(ncidP,NF90_GLOBAL,'H',rvalP), routine_name )
+	call compare_reals(rvalC, rvalP, 'H')
+	
+	call check( nf90_get_att(ncidC,NF90_GLOBAL,'Ross',rvalC), routine_name )  
+	call check( nf90_get_att(ncidP,NF90_GLOBAL,'Ross',rvalP), routine_name )
+	call compare_reals(rvalC, rvalP, 'Ross')
+	
+	call check( nf90_get_att(ncidC,NF90_GLOBAL,'gamma',rvalC), routine_name )  
+	call check( nf90_get_att(ncidP,NF90_GLOBAL,'gamma',rvalP), routine_name )
+	call compare_reals(rvalC, rvalP, 'gamma')
+	
+	call check( nf90_get_att(ncidC,NF90_GLOBAL,'tau',rvalC), routine_name )  
+	call check( nf90_get_att(ncidP,NF90_GLOBAL,'tau',rvalP), routine_name )
+	call compare_reals(rvalC, rvalP, 'tau')
+	
+	call check( nf90_get_att(ncidC,NF90_GLOBAL,'trl',rvalC), routine_name )  
+	call check( nf90_get_att(ncidP,NF90_GLOBAL,'trl',rvalP), routine_name )
+	call compare_reals(rvalC, rvalP, 'trl')
+	
+	call check( nf90_get_att(ncidC,NF90_GLOBAL,'amu',rvalC), routine_name )  
+	call check( nf90_get_att(ncidP,NF90_GLOBAL,'amu',rvalP), routine_name )
+	call compare_reals(rvalC, rvalP, 'amu')
+	
+	call check( nf90_get_att(ncidC,NF90_GLOBAL,'shear',rvalC), routine_name )  
+	call check( nf90_get_att(ncidP,NF90_GLOBAL,'shear',rvalP), routine_name )
+	call compare_reals(rvalC, rvalP, 'shear')
+	
+	call check( nf90_close(ncidC), routine_name )
+	call check( nf90_close(ncidP), routine_name )
+
+	return
+end SUBROUTINE check_smat 
+
+SUBROUTINE compare_integers(ival1, ival2, varname)
+
+	implicit none
+	integer, intent(in)          :: ival1, ival2
+	character(len=*), intent(in) :: varname
+	character(len=64), parameter :: routine_name = 'compare_ints'
+
+	if ( ival1 /= ival2 ) then
+		write(6,'(a18, 1x, a20)') 'variable mismatch:', trim(adjustl(varname))
+		write(6,'(a1, 1x, i6, 1x, a1, 1x, i6)') 'C', ival1, 'P', ival2
+		stop
+	endif
+
+	return
+end SUBROUTINE compare_integers
+
+SUBROUTINE compare_reals(rval1, rval2, varname)
+
+	implicit none
+	real, intent(in)             :: rval1, rval2
+	character(len=*), intent(in) :: varname
+	character(len=64), parameter :: routine_name = 'compare_reals'
+
+	if ( rval1 /= rval2 ) then
+		write(6,'(a18, 1x, a20)') 'variable mismatch:', trim(adjustl(varname))
+		write(6,'(a1, 1x, f6.6, 1x, a1, 1x, f6.6)') 'C', rval1, 'P', rval2
+		stop
+	endif
+
+	return
+end SUBROUTINE compare_reals
 
 subroutine check(ierr, routine_name)
 
