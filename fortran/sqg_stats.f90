@@ -146,6 +146,10 @@ PROGRAM sqg_stats
 	call check( nf90_close(ncidC), 'sqg_stats')
 	call check( nf90_close(ncidP), 'sqg_stats')
 	
+	call transfer_ga(smatCfile,smatDfile)
+
+	write(6,'(a14)') 'sqg_stats done'
+
 	stop
 
 CONTAINS
@@ -420,6 +424,40 @@ SUBROUTINE compare_reals(rval1, rval2, varname)
 
 	return
 end SUBROUTINE compare_reals
+
+SUBROUTINE transfer_ga(fromfile,tofile)
+
+	implicit none
+	character(len=*), intent (in)  :: fromfile, tofile
+	integer                        :: ncidf, ncidt
+	character(len=64), parameter   :: routine_name = 'transfer_ga'
+
+	call check( nf90_open(trim(adjustl(fromfile)), NF90_NOWRITE, ncidf), routine_name )
+	call check( nf90_open(trim(adjustl(tofile)),   NF90_WRITE,   ncidt), routine_name )
+	
+	call check( nf90_redef(ncidt), routine_name )
+
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'model',ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'dt',   ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'iplot',ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'XL',   ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'YL',   ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'H',    ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'Ross', ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'gamma',ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'n',    ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'tau',  ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'trl',  ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'amu',  ncidt,NF90_GLOBAL), routine_name )
+	call check( nf90_copy_att(ncidf,NF90_GLOBAL,'shear',ncidt,NF90_GLOBAL), routine_name )
+
+	call check( nf90_enddef(ncidt), routine_name )
+	
+	call check( nf90_close(ncidf), routine_name )
+	call check( nf90_close(ncidt), routine_name )
+	
+	return
+end SUBROUTINE transfer_ga
 
 subroutine check(ierr, routine_name)
 

@@ -61,6 +61,8 @@ PROGRAM sqg_diag
 	enddo
 
 	call transfer_ga(smatfile,diagfile)
+
+	write(6,'(a13)') 'sqg_diag done'
 	
 	stop
 
@@ -213,8 +215,8 @@ SUBROUTINE transfer_ga(fromfile,tofile)
 
 	implicit none
 	character(len=*), intent (in)  :: fromfile, tofile
-	character(len=64), parameter   :: routine_name = 'transfer_ga'
 	integer                        :: ncidf, ncidt
+	character(len=64), parameter   :: routine_name = 'transfer_ga'
 
 	call check( nf90_open(trim(adjustl(fromfile)), NF90_NOWRITE, ncidf), routine_name )
 	call check( nf90_open(trim(adjustl(tofile)),   NF90_WRITE,   ncidt), routine_name )
