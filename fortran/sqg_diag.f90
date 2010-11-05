@@ -1,9 +1,9 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! <next few lines under version control, D O  N O T  E D I T>
-! $Date: 2010-08-12 12:03:57 -0700 (Thu, 12 Aug 2010) $
-! $Author: rahulm $
-! $Revision: 27 $
-! $Id: sqg_diag.f90 27 2010-11-05 16:49:46Z rahulm $
+! $Date$
+! $Author$
+! $Revision$
+! $Id$
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 PROGRAM sqg_diag
