@@ -17,25 +17,18 @@ clean_on_exit( ) {
 	echo "last 50 lines of ... ${logfile}" >> /tmp/msg
 	tail -n 50 ${logfile}                  >> /tmp/msg
 	mutt -s "${exp_name} has stopped on host `hostname -s`" `whoami`@atmos.uw.edu < /tmp/msg
+	\rm -f /tmp/msg
+	\rm -f sent
 	exit
 }
 
 #############################################################
 # M A I N   S C R I P T   S T A R T S   H E R E
 #############################################################
-# define experiment names and run types
-exp_name="shear1.0_amu1.0"
-run_type="control"
-let run_number=1
-let truth_run_number=1
 
-# Ensemble properties
-let Ne=5000  # no. of ensemble members
-let tint=21  # no. of times in each ensemble member
-
-# define local and remote experiment directories 
-dir_expt_src="/home/disk/pvort/rahulm/sqg_experiments"
-dir_expt_run="/home/disk/p/nobackup/rahulm/ALL_ETC/sqg_experiments"
+param=${1}
+until [ -e ${param} ]; do sleep 10; done
+source ${param}
 
 # define experiment source, run and log directories 
 dir_src=${dir_expt_src}/${exp_name}/${run_type}/src
@@ -84,7 +77,7 @@ fi
 echo "Link ${dir_run_truth}/smat.nc"                                 >> ${logfile}
 if [ -e ${dir_run_truth}/smat.nc ]; then
   \ln -sf ${dir_run_truth}/smat.nc    .
-	ncdump -h smat.nc     >> ${logfile} 2>&1
+	ncdump -h smat.nc >> ${logfile} 2>&1
 else
 	echo "   ################################################" >> ${logfile}
   echo "   ${dir_run_truth}/smat.nc needs to exist"          >> ${logfile}
@@ -121,6 +114,42 @@ echo "                                                             " >> ${logfil
 
 # Clean up and remove the linked smat.nc file
 \rm -f ${dir_run_truth}/smat.nc    .
+
+# Combine all smat_C_XXXXX.nc into smat_C_diag.nc
+\cp -f ${dir_src}/fortran/Makefile     .
+\cp -f ${dir_src}/fortran/sqg_diag.f90 .
+
+make clean    >> ${logfile} 2>&1
+make sqg_diag >> ${logfile} 2>&1
+
+if [ ! -e sqg_diag ]; then
+	echo "   sqg_diag did not get compiled correctly" >> ${logfile}
+	clean_on_exit ${logfile} ${exp_name}/${run_type}
+fi
+
+\rm -f control.diag.*
+cat >> control.diag.in << END_INPUT
+${Ne}
+'${dir_run}/'
+'C'
+END_INPUT
+
+(time ./sqg_diag < control.diag.in) > control.diag.out 2>&1
+cat control.diag.out >> ${logfile}
+
+let success=`grep "sqg_diag done" control.diag.out | wc -l`
+if [ $success -eq 0 ]; then
+	echo "   sqg_diag failed to create smat_C_diag.nc" >> ${logfile}
+	clean_on_exit ${logfile} ${exp_name}/${run_type}
+else
+	\rm -f control.diag.*
+	while [ $ie -le $Ne ]; do
+		let emem='100000 + ie'
+		emem=`echo ${emem} | cut -b2-`
+		\rm -f smat_C_${emem}.nc
+		let ie='ie + 1'
+	done
+fi
 
 echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
 echo " ${run_type} for experiment ${exp_name}"                       >> ${logfile}

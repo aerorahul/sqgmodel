@@ -20,20 +20,18 @@ clean_on_exit( ) {
 	tail -n 50 ${logfile}                  >> /tmp/msg
 	mutt -s "${exp_name} has stopped on host `hostname -s`" `whoami`@atmos.uw.edu < /tmp/msg
 	\mv -f ${dir_run_local} ${dir_run}
+	\rm -f sent
+	\rm -f /tmp/msg
 	exit
 }
 
 #############################################################
 # M A I N   S C R I P T   S T A R T S   H E R E
 #############################################################
-# define experiment names and run types
-exp_name="shear1.0_amu1.0"
-run_type="preptruth"
-let run_number=1
 
-# define local and remote experiment directories 
-dir_expt_src="/home/disk/pvort/rahulm/sqg_experiments"
-dir_expt_run="/home/disk/p/nobackup/rahulm/ALL_ETC/sqg_experiments"
+param=${1}
+until [ -e ${param} ]; do sleep 10; done
+source ${param}
 
 # define experiment source, run and log directories 
 dir_src=${dir_expt_src}/${exp_name}/${run_type}/src

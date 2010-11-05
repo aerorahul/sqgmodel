@@ -17,6 +17,8 @@ clean_on_exit( ) {
 	echo "last 50 lines of ... ${logfile}" >> /tmp/msg
 	tail -n 50 ${logfile}                  >> /tmp/msg
 	mutt -s "${exp_name} has stopped on host `hostname -s`" `whoami`@atmos.uw.edu < /tmp/msg
+	\rm -f /tmp/msg
+	\rm -f sent
 	exit
 }
 
@@ -24,23 +26,9 @@ clean_on_exit( ) {
 # M A I N   S C R I P T   S T A R T S   H E R E
 #############################################################
 
-#############  U S E R  I N P U T  -  B E G I N  #############
-
-# define experiment names and run types
-exp_name="shear1.0_amu1.0"
-exp_type="THETA"
-run_type="perturbed"
-let run_number=1
-let control_run_number=1
-
-# Ensemble size
-let Ne=5000  # no. of ensemble members
-
-# define local and remote experiment directories 
-dir_expt_src="/home/disk/pvort/rahulm/sqg_experiments"
-dir_expt_run="/home/disk/p/nobackup/rahulm/ALL_ETC/sqg_experiments"
-
-###############  U S E R  I N P U T  -  E N D  ###############
+param=${1}
+until [ -e ${param} ]; do sleep 10; done
+source ${param}
 
 # define experiment source, run and log directories 
 dir_src=${dir_expt_src}/${exp_name}/${run_type}/src
@@ -183,6 +171,71 @@ while [ ${ie} -le ${Ne} ]; do
 
 	let ie='ie+1'
 done
+
+# Combine all smat_P_XXXXX.nc into smat_P_diag.nc
+\cp -f ${dir_src}/fortran/Makefile     .
+\cp -f ${dir_src}/fortran/sqg_diag.f90 .
+
+make clean    >> ${logfile} 2>&1
+make sqg_diag >> ${logfile} 2>&1
+
+if [ ! -e sqg_diag ]; then
+	echo "   sqg_diag did not get compiled correctly" >> ${logfile}
+	clean_on_exit ${logfile} ${exp_name}/${run_type}
+fi
+
+\rm -f perturb.diag.*
+cat >> perturb.diag.in << END_INPUT
+${Ne}
+'${dir_run}/'
+'P'
+END_INPUT
+
+(time ./sqg_diag < perturb.diag.in) > perturb.diag.out 2>&1
+cat perturb.diag.out >> ${logfile}
+
+let success=`grep "sqg_diag done" perturb.diag.out | wc -l`
+if [ $success -eq 0 ]; then
+	echo "   sqg_diag failed to create smat_P_diag.nc" >> ${logfile}
+	clean_on_exit ${logfile} ${exp_name}/${run_type}
+else
+	\rm -f perturb.diag.*
+	while [ $ie -le $Ne ]; do
+		let emem='100000 + ie'
+		emem=`echo ${emem} | cut -b2-`
+		\rm -f smat_P_${emem}.nc
+		let ie='ie + 1'
+	done
+fi
+
+# Calculate ensemble mean and spread of the difference
+\cp -f ${dir_src}/fortran/Makefile      .
+\cp -f ${dir_src}/fortran/sqg_stats.f90 .
+
+make clean     >> ${logfile} 2>&1
+make sqg_stats >> ${logfile} 2>&1
+
+if [ ! -e sqg_stats ]; then
+	echo "   sqg_stats did not get compiled correctly" >> ${logfile}
+	clean_on_exit ${logfile} ${exp_name}/${run_type}
+fi
+
+\rm -f perturb.diag.*
+cat >> perturb.diag.in << END_INPUT
+'${dir_run_control}/'
+'${dir_run}/'
+END_INPUT
+
+(time ./sqg_stats < perturb.diag.in) > perturb.diag.out 2>&1
+cat perturb.diag.out >> ${logfile}
+
+let success=`grep "sqg_stats done" perturb.diag.out | wc -l`
+if [ $success -eq 0 ]; then
+	echo "   sqg_stats failed to create smat_D_diag.nc" >> ${logfile}
+	clean_on_exit ${logfile} ${exp_name}/${run_type}
+else
+	\rm -f perturb.diag.*
+fi
 
 echo "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" >> ${logfile}
 echo " ${run_type} for experiment ${exp_name}"                       >> ${logfile}
