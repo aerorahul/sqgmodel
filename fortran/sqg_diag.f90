@@ -21,11 +21,15 @@ PROGRAM sqg_diag
   real, allocatable, dimension(:,:,:) :: thxyB_sum, thxyT_sum, trxyB_sum, trxyT_sum
   real, allocatable, dimension(:,:,:) :: thxyB_mean, thxyT_mean, trxyB_mean, trxyT_mean
   real, allocatable, dimension(:,:,:) :: thxyB_spread, thxyT_spread, trxyB_spread, trxyT_spread
-	character(len=64)                   :: charbuf, smatCfile, smatPfile
+	character(len=1024)                 :: fpth_c, fpth_p, smatCfile, smatPfile
 	character(len=5)                    :: nchar
 	
-	call getarg(1,charbuf)
-	read(charbuf,'(I5)') ens_size
+	print*, 'ensemble size:'
+	read*,  ens_size
+	print*, 'path to control experiment files:'
+	read*,  fpth_c
+	print*, 'path to perturbed experiment files:'
+	read*,  fpth_p
 	
 	print*,'calculating ensemble mean ...'
 	do n = 1, ens_size
@@ -33,8 +37,8 @@ PROGRAM sqg_diag
 		
 		if ( mod(n,100) == 0 ) print*,' ... member ', trim(adjustl(nchar))
 
-		smatCfile = 'smat_C_' // trim(adjustl(nchar)) // '.nc'
-		smatPfile = 'smat_P_' // trim(adjustl(nchar)) // '.nc'
+		smatCfile = trim(adjustl(fpth_c)) // 'smat_C_' // trim(adjustl(nchar)) // '.nc'
+		smatPfile = trim(adjustl(fpth_p)) // 'smat_P_' // trim(adjustl(nchar)) // '.nc'
 
 		if ( (.not. file_exist(smatCfile))  .and. ( .not. file_exist(smatPfile)) ) then
 			print*, 'Both ', trim(adjustl(smatCfile)), ' and ', trim(adjustl(smatPfile)), ' must exist'
@@ -96,8 +100,8 @@ PROGRAM sqg_diag
 		
 		if ( mod(n,100) == 0 ) print*,' ... member ', trim(adjustl(nchar))
 
-		smatCfile = 'smat_C_' // trim(adjustl(nchar)) // '.nc'
-		smatPfile = 'smat_P_' // trim(adjustl(nchar)) // '.nc'
+		smatCfile = trim(adjustl(fpth_c)) // 'smat_C_' // trim(adjustl(nchar)) // '.nc'
+		smatPfile = trim(adjustl(fpth_p)) // 'smat_P_' // trim(adjustl(nchar)) // '.nc'
 
 		if ( n == 1 ) then
 			
