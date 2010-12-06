@@ -19,6 +19,9 @@ warning off all;
 % 2 = Cosine Bell	
 Nic = 2;
 
+% Offset the initial disturbance from y = 0
+offset = 0;
+
 save_netcdf  = true;
 save_figures = ~true;
 
@@ -60,7 +63,7 @@ switch(Nic)
 
 		amp = -5.0;
 		a  = 0.5   ;  b = a;     % scale control
-		x0 = 0     ;  y0 = 0;    % vortex origin
+		x0 = 0     ;  y0 = y(Ny/2-offset);    % vortex origin
 
 		arg = (((xg-x0)/a).^2 + ((yg-y0)/b).^2)/2;
 		fxy = amp*exp(-arg);
@@ -76,7 +79,7 @@ switch(Nic)
 		amp = -1.0;
 		a  = 1.75  ;  b  = a;    % scale control
 		a  = 3.5   ;  b  = a;    % scale control
-		x0 = 0    ;  y0 = 0;     % vortex origin
+		x0 = 0     ;  y0 = y(Ny/2-offset);    % vortex origin
 			
 		arg = sqrt(((xg-x0)/4*a).^2 + ((yg-y0)/4*b).^2);
 		fxy = ((amp/16).*(1+cos(pi.*arg)).^4).*(arg<=1);
