@@ -84,15 +84,14 @@ phiT_xy =  real(ifft2(phiT_sp));
 
 maxval = max(max(abs(thT_xy)));
 
-figure(1); clf;
-plot(x,thT_xy(32,:)./maxval,'r',  ...
-     x,phiT_xy(32,:)./maxval,'b', ... 
-		 x,vT(32,:)./maxval,'k',      ...
-		 LW,lw);
-xlabel('X',FS,fs,FW,fw)
-ylabel('Amplitude',FS,fs,FW,fw)
+figure(1); clf; hold on;
+plot(x,thT_xy(32,:)./maxval,'k-',  'Linewidth', 2.0);
+plot(x,phiT_xy(32,:)./maxval,'k-', 'Linewidth', 1.0); 
+plot(x,vT(32,:)./maxval,'k--',     'Linewidth', 2.0);
+xlabel('r',FS,fs,FW,fw)
+ylabel('amplitude',FS,fs,FW,fw)
 
-l = legend('\theta','v','\phi');
+l = legend('\theta','\phi','v');
 
 axis([-Lx/2 Lx/2 -0.6 1.1]);
 h2 = gca;
@@ -103,7 +102,7 @@ t = title('Localized Theta');
 set(l,FS,fs,FW,fw);
 set(t,FS,fs,FW,fw);
 
-savefigure(gcf,'loctheta');
+savefigure(gcf,'loctheta',300,'png','portrait');
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Localized phi 
@@ -117,15 +116,14 @@ vT =  real(ifft2(i*DX.*phiT_sp));
 
 maxval = max(max(abs(thT_xy)));
 
-figure(2); clf;
-plot(x,thT_xy(32,:)./maxval,'r',  ...
-     x,phiT_xy(32,:)./maxval,'b', ... 
-		 x,vT(32,:)./maxval,'k',      ...
-		 LW,lw);
-xlabel('X',FS,fs,FW,fw)
-ylabel('Amplitude',FS,fs,FW,fw)
+figure(2); clf; hold on;
+plot(x,thT_xy(32,:)./maxval,'k-',  'Linewidth', 2.0);
+plot(x,phiT_xy(32,:)./maxval,'k-', 'Linewidth', 1.0); 
+plot(x,vT(32,:)./maxval,'k--',     'Linewidth', 2.0);
+xlabel('r',FS,fs,FW,fw)
+ylabel('amplitude',FS,fs,FW,fw)
 
-l = legend('\theta','v','\phi');
+l = legend('\theta','\phi','v');
 
 axis([-Lx/2 Lx/2 -0.6 1.1]);
 h2 = gca;
@@ -136,5 +134,5 @@ t = title('Localized Geopotential');
 set(l,FS,fs,FW,fw);
 set(t,FS,fs,FW,fw);
 
-savefigure(gcf,'locphi');
+savefigure(gcf,'locphi',300,'png','portrait');
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
