@@ -22,9 +22,8 @@ PROGRAM sqg_spectral
 END PROGRAM sqg_spectral
 
 SUBROUTINE main
-  ! Originator: G. Hakim, University of Washington
   
-	USE spectral
+  USE spectral
 
   IMPLICIT NONE
 
@@ -583,7 +582,6 @@ end SUBROUTINE invert_tracer
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE xy_to_sp(xy,sp,mx,ny,km,lm)
-  !     Originator: G. Hakim, NCAR/MMM
 
   ! Map an (x,y) array onto a _smaller_ spectral array.
   ! Input: xy(mx,ny) --- a grid point array.
@@ -634,7 +632,6 @@ end SUBROUTINE xy_to_sp
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE sp_to_xy(sp,xy2,km,lm,mx,ny)
-  !     Originator: G. Hakim, NCAR/MMM
 
   ! Map an (km,lm) spectral array onto a _bigger_ grid point array.
   ! Input: sp(2*km,2*lm) --- a spectral array.
@@ -687,7 +684,6 @@ end SUBROUTINE sp_to_xy
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE diff(dco)
-  !     Originator: G. Hakim, NCAR/MMM
 
   USE spectral
   IMPLICIT NONE
@@ -715,7 +711,6 @@ end SUBROUTINE diff
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE init(thB,thT)
-  !     Originator: G. Hakim, NCAR/MMM
 
   USE spectral
   IMPLICIT NONE
@@ -765,7 +760,6 @@ end SUBROUTINE init
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE init_restart(thB,thT)
-  !     Originator: G. Hakim, NCAR/MMM
 
   USE spectral
   IMPLICIT NONE
@@ -803,7 +797,6 @@ end SUBROUTINE init_restart
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE init_tracer(trB,trT)
-  !     Originator: R. Mahajan
 
   USE spectral
   IMPLICIT NONE
@@ -840,7 +833,6 @@ end SUBROUTINE init_tracer
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE init_jet(thbB,thbT,thbyB,thbyT,ulinB,ulinT,lam)
-  !     Originator: G. Hakim, University of Washington
 
   USE spectral
   IMPLICIT NONE
@@ -938,8 +930,6 @@ END FUNCTION ran1
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE dump(thspB,thspT,trspB,trspT,ilam,lam,it,outfile)
-  !     Originator: G. Hakim, NCAR/MMM
-  !     Modifier  : Rahul Mahajan, UW July 2005. (netcdf output)
 
   !     Write theta or streamfunction to disk.
   USE spectral
@@ -1005,7 +995,6 @@ end SUBROUTINE dump
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE advect(u,v,f_x,f_y,fb_y,h_x,h_y,ub,tf,lam,lap)
-  !     Originator: G. Hakim, U. Washington
 
   ! Spectral advection on the (x,y) grid.
   USE spectral
@@ -1059,7 +1048,6 @@ end SUBROUTINE advect
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE thadvB(dat,tend,dco,first)
-  !     Originator: G. Hakim, NCAR/MMM
 
   ! Time-advance subroutine.
   USE spectral
@@ -1122,7 +1110,6 @@ end SUBROUTINE thadvB
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE thadvT(dat,tend,dco,first)
-  !     Originator: G. Hakim, NCAR/MMM
 
   ! Time-advance subroutine.
   USE spectral
@@ -1185,7 +1172,6 @@ end SUBROUTINE thadvT
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE tradvB(dat,tend,dco,first)
-  !     Originator: G. Hakim, NCAR/MMM
 
   ! Time-advance subroutine.
   USE spectral
@@ -1248,7 +1234,6 @@ end SUBROUTINE tradvB
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE tradvT(dat,tend,dco,first)
-  !     Originator: G. Hakim, NCAR/MMM
 
   ! Time-advance subroutine.
   USE spectral
@@ -1355,15 +1340,10 @@ end subroutine tstep_ab
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine ft_2d(f,ni,nj,isign)
-  !     Originator: G. J. Hakim, University of Washington.
 
   ! FFT-calling subroutine. Plug in appropriate calls.
 
   IMPLICIT NONE
-
-  !      include '/usr/include/DXMLDEF.FOR' ! for the dec fft routines
-  !      logical, parameter :: dec = .TRUE. ! for the dec fft routines
-  logical, parameter :: dec = .FALSE.; real :: cfft_2d !netlib
 
   integer, intent(in) :: ni, nj, isign
   real, dimension(ni,nj) :: re, im
@@ -1373,37 +1353,16 @@ subroutine ft_2d(f,ni,nj,isign)
   !  integer*4 :: stat
   integer :: stat
 
-  if (dec) then 
-     if (isign .eq. -1) then 
-        csign = 'F'
-     elseif (isign .eq. 1) then 
-        csign = 'B'
-        f = f*ni*nj
-     else
-        print*,'Error in ft_2d call'
-        stop
-     endif
-!     stat = CFFT_2D('C','C',csign,f,f,ni,nj,ni,1,1)
-     if (stat .ne. 0) then 
-        print*,'Error in dec fft call:',stat
-        stop
-     endif
-
-  elseif (.not. dec) then 
-
-     re = real(f); im = aimag(f)
-     call fft(re,im,ni*nj,ni,ni,isign)
-     call fft(re,im,ni*nj,nj,nj*ni,isign)
-     f = cmplx(re,im)
-
-  endif
+  re = real(f); im = aimag(f)
+  call fft(re,im,ni*nj,ni,ni,isign)
+  call fft(re,im,ni*nj,nj,nj*ni,isign)
+  f = cmplx(re,im)
 
   return
 end subroutine ft_2d
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine d_setup(dx,dy,dz,dzo,iz,izo,Id)
-  !     Originator: G. Hakim, University of Washington.
 
   ! Set up matrices for derivatives and integrals.
 
@@ -1466,7 +1425,6 @@ end subroutine d_setup
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine d_s2b(in,out,dflag,dn)
-  !     Originator: G. J. Hakim, University of Washington.
 
   ! small array to big array.
   ! dflag =  n: n derivatives. dflag = -n: n integrations.
@@ -1507,7 +1465,6 @@ end subroutine d_s2b
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine d_s2s(in,out,dflag,dn)
-  !     Originator: G. J. Hakim, University of Washington.
 
   ! small array to small array.
   ! dflag =  n: n derivatives. dflag = -n: n integrations.
@@ -1531,7 +1488,6 @@ end subroutine d_s2s
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine d_b2b(in,out,dflag,dn)
-  !     Originator: G. J. Hakim, University of Washington.
 
   ! big array to big array.
   ! dflag =  n: n derivatives. dflag = -n: n integrations.
@@ -1578,7 +1534,6 @@ end subroutine d_b2b
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine d_b2s(in,out,dflag,dn)
-  !     Originator: G. J. Hakim, University of Washington.
 
   ! big array to small array.
   ! dflag =  n: n derivatives. dflag = -n: n integrations.
@@ -1738,7 +1693,6 @@ end FUNCTION ekman
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine cdf_dump(output_file,it,thB,thT,trB,trT)
-  !     Originator: R. Mahajan, University of Washington.
 
   use spectral
   
@@ -1828,7 +1782,6 @@ end subroutine cdf_dump
 ! Terrain and barotropic wind on the _advection_ grid:
 SUBROUTINE terrain(hamp,hx,hy,hu,hv)
 
-!     Originator: G. Hakim, NCAR/MMM
 ! feb 2005: added tropo winds from z = 0 for Hsqg
 
   USE spectral

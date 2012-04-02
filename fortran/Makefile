@@ -12,16 +12,31 @@
 #------------------------------------------------------------
 
 #------------------------------------------------------------
-machine := ${shell uname}
-ifeq (${machine}, Linux)
-NETCDF  = /usr
-NCFLAGS = -L${NETCDF}/lib -lnetcdf -lnetcdff -I${NETCDF}/include
+machine := ${shell uname -m}
+host := ${shell hostname -s}
+
+ifeq (${machine}, x86_64)
+NETCDF = /usr/local/other/netcdf/4.1.1/serial_Intel-11.1.069 
+NCFLAGS = -L${NETCDF}/lib -lnetcdff -lnetcdf -I${NETCDF}/include
 mFFLAGS =
 endif
-ifeq (${machine}, Darwin)
-NETCDF  = /opt/netcdf
-NCFLAGS = -L${NETCDF}/lib -lnetcdf -I${NETCDF}/include
-mFFLAGS = -shared-intel
+
+ifeq (${host}, stratopause)
+NETCDF = /usr
+NCFLAGS = -L${NETCDF}/lib -lnetcdff -lnetcdf -I${NETCDF}/include
+mFFLAGS =
+endif
+
+ifeq (${host}, trident)
+NETCDF  = /ford1/local/EL6/netcdf4
+NCFLAGS = -L${NETCDF}/lib -lnetcdff -lnetcdf -I${NETCDF}/include
+mFFLAGS =
+endif
+
+ifeq (${host}, blue)
+NETCDF  = /ford1/local/EL5/netcdf4
+NCFLAGS = -L${NETCDF}/lib -lnetcdff -lnetcdf -I${NETCDF}/include
+mFFLAGS =
 endif
 #------------------------------------------------------------
 
