@@ -8,254 +8,252 @@
 
 ! Fortran90 code for a uniform-PV two-surface QG+1 model in spectral form.
 !
-! Originators: G. J. Hakim,  University of Washington
-!              D. J. Muraki, Simon Fraser University
-!
 ! sQG dynamics are recovered for: Ross=0.0, H-->\infty
 !  2D dynamics are recovered for: Ross=0.0, H-->0; \theta->\theta*H
 
 PROGRAM sqg_spectral
 
-  call main
-  stop
+    call main
+    stop
 
 END PROGRAM sqg_spectral
 
 SUBROUTINE main
-  
-  USE spectral
 
-  IMPLICIT NONE
+    USE spectral
 
-  ! spectral values
-  complex, dimension(2*kmax,2*lmax) :: thspB,thbB,trspB
-  complex, dimension(2*kmax,2*lmax) :: thspT,thbT,trspT
-  complex, dimension(2*kmax,2*lmax) :: sbold,sB
-  ! grid point values
-  real,    dimension(mmax,nmax) :: thxB,thyB,vB,uB,trxB,tryB
-  real,    dimension(mmax,nmax) :: thxT,thyT,vT,uT,trxT,tryT
-  ! spectral work arrays
-  real,    dimension(2*kmax,2*lmax) :: thxyB,thpxyB
-  real,    dimension(2*kmax,2*lmax) :: thxyT,thpxyT
-  real,    dimension(2*kmax,2*lmax) :: trxyB
-  real,    dimension(2*kmax,2*lmax) :: trxyT
-  ! tendencies
-  real,    dimension(mmax,nmax) :: lap,blank,hx,hy,hu,hv 
-  real,    dimension(mmax,nmax) :: tthB,ttrB
-  real,    dimension(mmax,nmax) :: tthT,ttrT
-  complex, dimension(mmax,nmax) :: tthspB,ttrspB
-  complex, dimension(mmax,nmax) :: tthspT,ttrspT
-  ! basic state
-  real,    dimension(mmax,nmax) :: ulinB,thbyB
-  real,    dimension(mmax,nmax) :: ulinT,thbyT
-  ! misc
-  real    :: dx,dx2,dy,dy2,x,asx,asy,asig,rr,ctemp,rtemp,ak,bl,dco,btc
-  real    :: hamp,amp,ran1,noise,time,lam
-  real    :: cxB,cyB
-  real    :: cxT,cyT
-  integer :: i,j,k,l,irec,irecl,LL,MM,idu,itime,kk,iseed
-  logical :: first,bot,top
-  ! output
-  character(len=64) :: smatfile, finalfile
+    IMPLICIT NONE
 
-!!!!!!!!!!!!!!!!!!!!!!!!
-! Start of executable: !
-!!!!!!!!!!!!!!!!!!!!!!!!
+    ! spectral values
+    complex, dimension(2*kmax,2*lmax) :: thspB,thbB,trspB
+    complex, dimension(2*kmax,2*lmax) :: thspT,thbT,trspT
+    complex, dimension(2*kmax,2*lmax) :: sbold,sB
+    ! grid point values
+    real,    dimension(mmax,nmax) :: thxB,thyB,vB,uB,trxB,tryB
+    real,    dimension(mmax,nmax) :: thxT,thyT,vT,uT,trxT,tryT
+    ! spectral work arrays
+    real,    dimension(2*kmax,2*lmax) :: thxyB,thpxyB
+    real,    dimension(2*kmax,2*lmax) :: thxyT,thpxyT
+    real,    dimension(2*kmax,2*lmax) :: trxyB
+    real,    dimension(2*kmax,2*lmax) :: trxyT
+    ! tendencies
+    real,    dimension(mmax,nmax) :: lap,blank,hx,hy,hu,hv 
+    real,    dimension(mmax,nmax) :: tthB,ttrB
+    real,    dimension(mmax,nmax) :: tthT,ttrT
+    complex, dimension(mmax,nmax) :: tthspB,ttrspB
+    complex, dimension(mmax,nmax) :: tthspT,ttrspT
+    ! basic state
+    real,    dimension(mmax,nmax) :: ulinB,thbyB
+    real,    dimension(mmax,nmax) :: ulinT,thbyT
+    ! misc
+    real    :: dx,dx2,dy,dy2,x,asx,asy,asig,rr,ctemp,rtemp,ak,bl,dco,btc
+    real    :: hamp,amp,ran1,noise,time,lam
+    real    :: cxB,cyB
+    real    :: cxT,cyT
+    integer :: i,j,k,l,irec,irecl,LL,MM,idu,itime,kk,iseed
+    logical :: first,bot,top
+    ! output
+    character(len=64) :: smatfile, finalfile
 
-  if (verbose .gt. 0) print *,'Running with Rossby number: ', Ross
+    !!!!!!!!!!!!!!!!!!!!!!!!
+    ! Start of executable: !
+    !!!!!!!!!!!!!!!!!!!!!!!!
 
-  blank = 0.
+    if (verbose .gt. 0) print *,'Running with Rossby number: ', Ross
 
-  ! initialize diffusion (n,kmax,lmax,tau,dco):
-  call diff(dco)
+    blank = 0.
 
-  ! initialize (read from Matlab file or restart file, option to add pert. to restart file):
-	if (restart) then
-		call init_restart(thxyB,thxyT)
-		if (add_pert) then
-			call init(thpxyB,thpxyT)
-			thxyB = thxyB + thpxyB
-			thxyT = thxyT + thpxyT
-		endif
-	else
-		call init(thxyB,thxyT)
-	endif
+    ! initialize diffusion (n,kmax,lmax,tau,dco):
+    call diff(dco)
 
-	! initialize tracer:
-  if (verbose .gt. 1)   print*,'itracer = ',itracer
-	if (itracer) then
-		call init_tracer(trxyB,trxyT)
-	endif
-
-  if (verbose .gt. 0) print *,'...writing to netCDF files'
-	smatfile = trim(adjustl(path) // "smat.nc")
-  call cdf_dump(smatfile,0)
-
-  ! advection flags
-  top = .TRUE.; bot = .TRUE.
- ! if (maxval(abs(thxyT)) .lt. 1.e-5) top = .FALSE.
- ! if (maxval(abs(thxyB)) .lt. 1.e-5) bot = .FALSE.
-  if (model .eq. 2) then ! tropo sQG
-     top = .TRUE.; bot = .FALSE.
-  elseif (model .eq. 3 .or. model .eq. 0) then ! surface sQG
-     top = .FALSE.; bot = .TRUE.
-  elseif (model .eq. 4) then                   ! tropo HsQG
-     top = .TRUE.; bot = .FALSE.
-  endif
-
-  if (verbose .gt. 0) print*,'max BOTTOM initial value=',maxval(abs(thxyB)),bot
-  if (verbose .gt. 0) print*,'max TOPPOM initial value=',maxval(abs(thxyT)),top
-
-	! map into spectral space at the same resolution:
-  call xy_to_sp(cmplx(thxyB,0.),thspB,2*kmax,2*lmax,kmax,lmax)
-  call xy_to_sp(cmplx(thxyT,0.),thspT,2*kmax,2*lmax,kmax,lmax)
-	if (itracer) then
-	  call xy_to_sp(cmplx(trxyB,0.),trspB,2*kmax,2*lmax,kmax,lmax)
-  	call xy_to_sp(cmplx(trxyT,0.),trspT,2*kmax,2*lmax,kmax,lmax)
-	endif
-
-  ! option to zero k = 1 modes
-  !thspB(2,:) = 0.; thspB(2*kmax,:) = 0.
-  !thspT(2,:) = 0.; thspT(2*kmax,:) = 0.
-
-  ! init jet
-  if (hw) then 
-     call init_jet(thbB,thbT,thbyB,thbyT,ulinB,ulinT,lam)
-     ulinB = ulinB + 0; ulinT = ulinT - 0*H*lam     ! barotropic wind (Ross = 0!)
-		
-		! write basic state to disk (linear shear:=  ON : 1, OFF : 0)
-	  call cdf_dump(trim(adjustl(path) // "base.nc"),0)
-  	call dump(thbB,thbT,blank,blank,1,lam,1,trim(adjustl(path) // 'base.nc'))
-  else
-     thbB = 0;thbT = 0;thbyB=0.;thbyT=0.;ulinB=0.;ulinT=0.;lam=0.
-  endif
-
-	irec = 0; first = .TRUE.
-  if (verbose .gt. 1) print*,'lam = ',lam
-  if (verbose .gt. 1) print*,'extrema ulinT = ',maxval(ulinT),minval(ulinT)
-
-  open(21,file = trim(adjustl(path) // 'mean.dat'),status='replace')
-  write(21,*) 'Mean theta, time:'; close(21)
-
-  ! initialize terrain:
-  hamp = 0.6
-  hu = 0.; hv = 0.; hx = 0.; hy = 0.
-  if (verbose .gt. 1)   print*,'iterr = ',iterr
-  if (iterr .and. Ross .eq. 0) then 
-     call terrain(hamp,hx,hy,hu,hv)
-     call invert(thspB,0*thspT,thxB,thxT,thyB,thyT,vB,vT,uB,uT,thbB,thbT, &
-          &        thbyB,thbyT,ulinB,ulinT,first, &
-          &        .TRUE.,.TRUE.,0*lam,sB,sbold,lap)
-     hu = uT; hv = vT
-     if (verbose .gt. 1) print*,'extrema hx = ',maxval(hx),minval(hx)
-     if (verbose .gt. 1) print*,'extrema hy = ',maxval(hy),minval(hy)
-     if (verbose .gt. 1) print*,'extrema hu = ',maxval(hu),minval(hu)
-     if (verbose .gt. 1) print*,'extrema hv = ',maxval(hv),minval(hv)
-  endif
-
-!!!!!!!!!!!!!!!!!!!!
-! BEGIN: Time loop !
-!!!!!!!!!!!!!!!!!!!!
-  do itime = 1, ntims
-
-		! option to zero l = 0 modes, which are nonlinear solutions
-		!thspB(:,1) = 0; thspT(:,1) = 0;
-		
-    time = real(itime-1)*dt
-    if (mod((itime-1),imean) .eq. 0) then
-      open(21,file=path//'mean.dat',position='append')
-      if (verbose .gt. 0) write(6,*) '...writing to mean.dat'
-      write(21,*)  real(thspB(1,1)),real(thspT(1,1))
-      write(21,*) time
-      close(21)
+    ! initialize (read from Matlab file or restart file, option to add pert. to restart file):
+    if (restart) then
+        call init_restart(thxyB,thxyT)
+        if (add_pert) then
+            call init(thpxyB,thpxyT)
+            thxyB = thxyB + thpxyB
+            thxyT = thxyT + thpxyT
+        endif
+    else
+        call init(thxyB,thxyT)
     endif
 
-    ! this is for growing the most unstable mode
-    if (grow .and. cyT .gt. .001) then ! rescale 
-      thspB = thspB/2.; thspT = thspT/2.
-      cyT = 0.
-      if (verbose .gt. 1) print*,'RESCALING'
+    ! initialize tracer:
+    if (verbose .gt. 1) print*,'itracer = ',itracer
+    if (itracer) call init_tracer(trxyB,trxyT)
+
+    if (verbose .gt. 0) print *,'...writing to netCDF files'
+    smatfile = trim(adjustl(path) // "smat.nc")
+    call cdf_dump(smatfile,0)
+
+    ! advection flags
+    top = .TRUE.; bot = .TRUE.
+    ! if (maxval(abs(thxyT)) .lt. 1.e-5) top = .FALSE.
+    ! if (maxval(abs(thxyB)) .lt. 1.e-5) bot = .FALSE.
+    if (model .eq. 2) then                       ! tropo sQG
+        top = .TRUE.; bot = .FALSE.
+    elseif (model .eq. 3 .or. model .eq. 0) then ! surface sQG
+        top = .FALSE.; bot = .TRUE.
+    elseif (model .eq. 4) then                   ! tropo HsQG
+        top = .TRUE.; bot = .FALSE.
     endif
 
-    ! save old streamfunction for Ekman calculation.
-    sbold = sB; if (first) sbold = 0.
+    if (verbose .gt. 0) print*,'max BOTTOM initial value=',maxval(abs(thxyB)),bot
+    if (verbose .gt. 0) print*,'max TOPPOM initial value=',maxval(abs(thxyT)),top
 
-    ! Invert theta for streamfunction; compute gradients for advection:
-    call invert(thspB,thspT,thxB,thxT,thyB,thyT,vB,vT,uB,uT,thbB,thbT,thbyB,thbyT,ulinB,ulinT,first,bot,top,lam,sB,sbold,lap)
+    ! map into spectral space at the same resolution:
+    call xy_to_sp(cmplx(thxyB,0.),thspB,2*kmax,2*lmax,kmax,lmax)
+    call xy_to_sp(cmplx(thxyT,0.),thspT,2*kmax,2*lmax,kmax,lmax)
+    if (itracer) then
+        call xy_to_sp(cmplx(trxyB,0.),trspB,2*kmax,2*lmax,kmax,lmax)
+        call xy_to_sp(cmplx(trxyT,0.),trspT,2*kmax,2*lmax,kmax,lmax)
+    endif
 
-		! Invert tracer to compute gradients for advection:
-		if (itracer) then
-			call invert_tracer(trspB,trspT,trxB,trxT,tryB,tryT,first,bot,top)
-		endif
+    ! option to zero k = 1 modes
+    !thspB(2,:) = 0.; thspB(2*kmax,:) = 0.
+    !thspT(2,:) = 0.; thspT(2*kmax,:) = 0.
+
+    ! init jet
+    if (hw) then
+
+        call init_jet(thbB,thbT,thbyB,thbyT,ulinB,ulinT,lam)
+        ulinB = ulinB + 0; ulinT = ulinT - 0*H*lam     ! barotropic wind (Ross = 0!)
+
+        ! write basic state to disk (linear shear:=  ON : 1, OFF : 0)
+        call cdf_dump(trim(adjustl(path) // "base.nc"),0)
+        call dump(thbB,thbT,blank,blank,1,lam,1,trim(adjustl(path) // 'base.nc'))
+
+    else
+
+        thbB = 0;thbT = 0;thbyB=0.;thbyT=0.;ulinB=0.;ulinT=0.;lam=0.
+
+    endif
+
+    irec = 0; first = .TRUE.
+    if (verbose .gt. 1) print*,'lam = ',lam
+    if (verbose .gt. 1) print*,'extrema ulinT = ',maxval(ulinT),minval(ulinT)
+
+    open(21,file = trim(adjustl(path) // 'mean.dat'),status='replace')
+    write(21,*) 'Mean theta, time:'; close(21)
+
+    ! initialize terrain:
+    hamp = 0.6
+    hu = 0.; hv = 0.; hx = 0.; hy = 0.
+    if (verbose .gt. 1)   print*,'iterr = ',iterr
+    if (iterr .and. Ross .eq. 0) then 
+        call terrain(hamp,hx,hy,hu,hv)
+        call invert(thspB,0*thspT,thxB,thxT,thyB,thyT,vB,vT,uB,uT,thbB,thbT, &
+          &         thbyB,thbyT,ulinB,ulinT,first, .TRUE.,.TRUE.,0*lam,sB,sbold,lap)
+        hu = uT; hv = vT
+        if (verbose .gt. 1) print*,'extrema hx = ',maxval(hx),minval(hx)
+        if (verbose .gt. 1) print*,'extrema hy = ',maxval(hy),minval(hy)
+        if (verbose .gt. 1) print*,'extrema hu = ',maxval(hu),minval(hu)
+        if (verbose .gt. 1) print*,'extrema hv = ',maxval(hv),minval(hv)
+    endif
+
+    !!!!!!!!!!!!!!!!!!!!
+    ! BEGIN: Time loop !
+    !!!!!!!!!!!!!!!!!!!!
+    do itime = 1, ntims
+
+        ! option to zero l = 0 modes, which are nonlinear solutions
+        !thspB(:,1) = 0; thspT(:,1) = 0;
+
+        time = real(itime-1)*dt
+        if (mod((itime-1),imean) .eq. 0) then
+            open(21,file=path//'mean.dat',position='append')
+            if (verbose .gt. 0) write(6,*) '...writing to mean.dat'
+            write(21,*)  real(thspB(1,1)),real(thspT(1,1))
+            write(21,*) time
+            close(21)
+        endif
+
+        ! this is for growing the most unstable mode
+        if (grow .and. cyT .gt. .001) then ! rescale 
+            if (verbose .gt. 1) print*,'RESCALING'
+            thspB = thspB/2.; thspT = thspT/2.
+            cyT = 0.
+        endif
+
+        ! save old streamfunction for Ekman calculation.
+        sbold = sB; if (first) sbold = 0.
+
+        ! Invert theta for streamfunction; compute gradients for advection:
+        call invert(thspB,thspT,thxB,thxT,thyB,thyT,vB,vT,uB,uT,thbB,thbT,thbyB,thbyT,ulinB,ulinT,first,bot,top,lam,sB,sbold,lap)
+
+        ! Invert tracer to compute gradients for advection:
+        if (itracer) then
+        call invert_tracer(trspB,trspT,trxB,trxT,tryB,tryT,first,bot,top)
+        endif
  
-		! option to compute potential enstrophy norm and growth rate:
-		if (inorm) call norm(thspB,thspT,itime)
+        ! option to compute potential enstrophy norm and growth rate:
+        if (inorm) call norm(thspB,thspT,itime)
 
-    ! write data to da file for plots (last entry for linear field +):
-    if (mod((itime-1),iplot) .eq. 0) then
-      if (hw) then ! add basic state to output
-        call dump(thspB+thbB,thspT+thbT,trspB,trspT,1,lam,itime,smatfile)
-      else ! no basic state
-        call dump(thspB,thspT,trspB,trspT,0,lam,itime,smatfile)
-      endif
-    endif
+        ! write data to da file for plots (last entry for linear field +):
+        if (mod((itime-1),iplot) .eq. 0) then
+            if (hw) then ! add basic state to output
+                call dump(thspB+thbB,thspT+thbT,trspB,trspT,1,lam,itime,smatfile)
+            else ! no basic state
+                call dump(thspB,thspT,trspB,trspT,0,lam,itime,smatfile)
+            endif
+        endif
 
-    ! spectral advection:
-    if (bot) call advect(uB,vB,thxB,thyB,thbyB,hx,hy,ulinB,tthB,lam,lap)
-    if (top) call advect(uT+hu,vT+hv,thxT,thyT,thbyT,blank,blank,ulinT,tthT,lam,blank)
-		if (itracer) then
-			if (bot) call advect(uB,vB,trxB,tryB,blank,hx,hy,ulinB,ttrB,blank,lap)
-			if (top) call advect(uT+hu,vT+hv,trxT,tryT,blank,blank,blank,ulinT,ttrT,blank,blank)
-		endif
+        ! spectral advection:
+        if (bot) call advect(uB,vB,thxB,thyB,thbyB,hx,hy,ulinB,tthB,lam,lap)
+        if (top) call advect(uT+hu,vT+hv,thxT,thyT,thbyT,blank,blank,ulinT,tthT,lam,blank)
+        if (itracer) then
+            if (bot) call advect(uB,vB,trxB,tryB,blank,hx,hy,ulinB,ttrB,blank,lap)
+            if (top) call advect(uT+hu,vT+hv,trxT,tryT,blank,blank,blank,ulinT,ttrT,blank,blank)
+        endif
 
-    ! Write Courant numbers to stdout
-    if (mod((itime-1),10) .eq. 0) then 
-      cxB = maxval(abs(uB+ulinB))*dt/(XL/real(2*kmax))
-      cyB = maxval(abs(vB))*dt/(YL/real(2*lmax))
-      cxT = maxval(abs(uT+ulinT))*dt/(XL/real(2*kmax))
-      cyT = maxval(abs(vT))*dt/(YL/real(2*lmax))
-			write(*,'(A23,F10.3,4F8.3)') 'time,cxB,cyB,cxT,cyT = ', &
-			    &            real(itime-1)*dt,cxB,cyB,cxT,cyT
-    endif
+        ! Write Courant numbers to stdout
+        if (mod((itime-1),10) .eq. 0) then 
+            cxB = maxval(abs(uB+ulinB))*dt/(XL/real(2*kmax))
+            cyB = maxval(abs(vB))*dt/(YL/real(2*lmax))
+            cxT = maxval(abs(uT+ulinT))*dt/(XL/real(2*kmax))
+            cyT = maxval(abs(vT))*dt/(YL/real(2*lmax))
+            write(*,'(A23,F10.3,4F8.3)') 'time,cxB,cyB,cxT,cyT = ', &
+            &            real(itime-1)*dt,cxB,cyB,cxT,cyT
+        endif
 
-    ! FFT back to spectral space:
-    if (bot) then 
-      tthspB = cmplx(tthB,0.); call ft_2d(tthspB,mmax,nmax,-1)
-			if (itracer) then
-				ttrspB = cmplx(ttrB,0.); call ft_2d(ttrspB,mmax,nmax,-1)
-			endif
-    endif
-    if (top) then 
-      tthspT = cmplx(tthT,0.); call ft_2d(tthspT,mmax,nmax,-1)
-			if (itracer) then
-				ttrspT = cmplx(ttrT,0.); call ft_2d(ttrspT,mmax,nmax,-1)
-			endif
-    endif
+        ! FFT back to spectral space:
+        if (bot) then 
+            tthspB = cmplx(tthB,0.); call ft_2d(tthspB,mmax,nmax,-1)
+            if (itracer) then
+                ttrspB = cmplx(ttrB,0.); call ft_2d(ttrspB,mmax,nmax,-1)
+            endif
+        endif
+        if (top) then 
+            tthspT = cmplx(tthT,0.); call ft_2d(tthspT,mmax,nmax,-1)
+            if (itracer) then
+                ttrspT = cmplx(ttrT,0.); call ft_2d(ttrspT,mmax,nmax,-1)
+            endif
+        endif
 
-    ! advance one time step with explicit (hyper-)diffusion:
-    if (bot) call thadvB(thspB,tthspB,dco,first)
-    if (top) call thadvT(thspT,tthspT,dco,first)
-		if (itracer) then
-    	if (bot) call tradvB(trspB,ttrspB,dco,first)
-    	if (top) call tradvT(trspT,ttrspT,dco,first)
-		endif
+        ! advance one time step with explicit (hyper-)diffusion:
+        if (bot) call thadvB(thspB,tthspB,dco,first)
+        if (top) call thadvT(thspT,tthspT,dco,first)
+        if (itracer) then
+            if (bot) call tradvB(trspB,ttrspB,dco,first)
+            if (top) call tradvT(trspT,ttrspT,dco,first)
+        endif
 
-    thspB(kmax,:) = 0.; thspB(lmax,:) = 0.
-		if (itracer) then
-    	trspB(kmax,:) = 0.; trspB(lmax,:) = 0.
-		endif
+        thspB(kmax,:) = 0.; thspB(lmax,:) = 0.
+        if (itracer) then
+            trspB(kmax,:) = 0.; trspB(lmax,:) = 0.
+        endif
     
-		first = .FALSE.
+        first = .FALSE.
 
-  end do ! itime
-!!!!!!!!!!!!!!!!!!
-! END: Time loop !
-!!!!!!!!!!!!!!!!!!
+    end do ! itime
+    !!!!!!!!!!!!!!!!!!
+    ! END: Time loop !
+    !!!!!!!!!!!!!!!!!!
 
-  ! write (final + 1) time to disk for future restart:
-	finalfile = trim(adjustl(path) // "final+1.nc")
-  call cdf_dump(finalfile,0)
-  call dump(thspB,thspT,blank,blank,0,lam,1,finalfile)
+    ! write (final + 1) time to disk for future restart:
+    finalfile = trim(adjustl(path) // "final+1.nc")
+    call cdf_dump(finalfile,0)
+    call dump(thspB,thspT,blank,blank,0,lam,1,finalfile)
 
 end SUBROUTINE main
 
@@ -725,16 +723,16 @@ SUBROUTINE init(thB,thT)
   if (verbose .gt. 0)  print*,'initializing theta fields...'
   thB = 0.; thT = 0.
 
- 	call check( nf90_open(path//trim('th_init.nc'), NF90_NOWRITE, ncid) )
-	call check( nf90_inq_dimid(ncid, 'nx', dimid) )
-	call check( nf90_inquire_dimension(ncid, dimid, len = twokmax) )
-	call check( nf90_inq_dimid(ncid, 'ny', dimid) )
-	call check( nf90_inquire_dimension(ncid, dimid, len = twolmax) )
-	call check( nf90_inq_varid(ncid, 'thetaB', varid) )
-	call check( nf90_get_var(ncid, varid, thB) )
-	call check( nf90_inq_varid(ncid, 'thetaT', varid) )
-	call check( nf90_get_var(ncid, varid, thT) )
-	call check( nf90_close(ncid) )
+  call check( nf90_open(path//trim('th_init.nc'), NF90_NOWRITE, ncid) )
+  call check( nf90_inq_dimid(ncid, 'nx', dimid) )
+  call check( nf90_inquire_dimension(ncid, dimid, len = twokmax) )
+  call check( nf90_inq_dimid(ncid, 'ny', dimid) )
+  call check( nf90_inquire_dimension(ncid, dimid, len = twolmax) )
+  call check( nf90_inq_varid(ncid, 'thetaB', varid) )
+  call check( nf90_get_var(ncid, varid, thB) )
+  call check( nf90_inq_varid(ncid, 'thetaT', varid) )
+  call check( nf90_get_var(ncid, varid, thT) )
+  call check( nf90_close(ncid) )
 
   if (twokmax .ne. 2*kmax .and. twolmax .ne. 2*lmax) then  
      print*,'x and y resolution from th_init.nc do not match SPECTRAL.f90!!!'
@@ -767,23 +765,23 @@ SUBROUTINE init_restart(thB,thT)
   ! Initialize theta fields (from restart file).
 
   real, intent(out), dimension(2*kmax,2*lmax) :: thB,thT
-	integer :: twokmax, twolmax
-	integer :: ncid, dimid, varid
+  integer :: twokmax, twolmax
+  integer :: ncid, dimid, varid
 
   if (verbose .gt. 0) print*,'!!! USING RESTART FILE !!!'
   thB = 0.; thT = 0.
 
   ! load from a restart file (will need to save told, told2, eventually)
-	call check( nf90_open(trim(path // 'restart.nc'), NF90_NOWRITE, ncid) )
-	call check( nf90_inq_dimid(ncid, 'nx', dimid) )
-	call check( nf90_inquire_dimension(ncid, dimid, len = twokmax) )
-	call check( nf90_inq_dimid(ncid, 'ny', dimid) )
-	call check( nf90_inquire_dimension(ncid, dimid, len = twolmax) )
-	call check( nf90_inq_varid(ncid, 'thetaB', varid) )
-	call check( nf90_get_var(ncid, varid, thB) )
-	call check( nf90_inq_varid(ncid, 'thetaT', varid) )
-	call check( nf90_get_var(ncid, varid, thT) )
-	call check (nf90_close(ncid) )
+  call check( nf90_open(trim(path // 'restart.nc'), NF90_NOWRITE, ncid) )
+  call check( nf90_inq_dimid(ncid, 'nx', dimid) )
+  call check( nf90_inquire_dimension(ncid, dimid, len = twokmax) )
+  call check( nf90_inq_dimid(ncid, 'ny', dimid) )
+  call check( nf90_inquire_dimension(ncid, dimid, len = twolmax) )
+  call check( nf90_inq_varid(ncid, 'thetaB', varid) )
+  call check( nf90_get_var(ncid, varid, thB) )
+  call check( nf90_inq_varid(ncid, 'thetaT', varid) )
+  call check( nf90_get_var(ncid, varid, thT) )
+  call check (nf90_close(ncid) )
 
   if (twokmax .ne. 2*kmax .and. twolmax .ne. 2*lmax) then  
      print*,'x and y resolution from restart.nc do not match SPECTRAL.f90!!!'
@@ -804,22 +802,22 @@ SUBROUTINE init_tracer(trB,trT)
   ! Initialize tracer fields
 
   real, intent(out), dimension(2*kmax,2*lmax) :: trB,trT
-	integer :: twokmax, twolmax
-	integer :: ncid, dimid, varid
+  integer :: twokmax, twolmax
+  integer :: ncid, dimid, varid
 
   if (verbose .gt. 0)  print*,'initializing tracer fields...'
   trB = 0.; trT = 0.
 
- 	call check( nf90_open(path//trim('tr_init.nc'), NF90_NOWRITE, ncid) )
-	call check( nf90_inq_dimid(ncid, 'nx', dimid) )
-	call check( nf90_inquire_dimension(ncid, dimid, len = twokmax) )
-	call check( nf90_inq_dimid(ncid, 'ny', dimid) )
-	call check( nf90_inquire_dimension(ncid, dimid, len = twolmax) )
-	call check( nf90_inq_varid(ncid, 'tracerB', varid) )
-	call check( nf90_get_var(ncid, varid, trB) )
-	call check( nf90_inq_varid(ncid, 'tracerT', varid) )
-	call check( nf90_get_var(ncid, varid, trT) )
-	call check (nf90_close(ncid) )
+  call check( nf90_open(path//trim('tr_init.nc'), NF90_NOWRITE, ncid) )
+  call check( nf90_inq_dimid(ncid, 'nx', dimid) )
+  call check( nf90_inquire_dimension(ncid, dimid, len = twokmax) )
+  call check( nf90_inq_dimid(ncid, 'ny', dimid) )
+  call check( nf90_inquire_dimension(ncid, dimid, len = twolmax) )
+  call check( nf90_inq_varid(ncid, 'tracerB', varid) )
+  call check( nf90_get_var(ncid, varid, trB) )
+  call check( nf90_inq_varid(ncid, 'tracerT', varid) )
+  call check( nf90_get_var(ncid, varid, trT) )
+  call check (nf90_close(ncid) )
 
   if (twokmax .ne. 2*kmax .and. twolmax .ne. 2*lmax) then  
      print*,'x and y resolution from tr_init.nc do not match SPECTRAL.f90!!!'
@@ -976,7 +974,7 @@ SUBROUTINE dump(thspB,thspT,trspB,trspT,ilam,lam,it,outfile)
   endif
 
   if (verbose .gt. 0) print*,'Writing to disk...'
-	call cdf_dump(outfile,it,thxyB,thxyT,trxyB,trxyT)
+  call cdf_dump(outfile,it,thxyB,thxyT,trxyB,trxyT)
   
   ! write the init files if this is a grow run
   if (grow) then 
@@ -1309,16 +1307,16 @@ subroutine tstep_ab(tend,dat,told,told2,ak,bl,dco,dts,flag)
 
   ! changed 02/07/03 to include relaxation to jet
   relax = 0.
-	
-	! set relaxation only if theta and not tracer
-	if (flag) then
-		if (trl .lt. 1.e3 .and. trl .gt. 0) relax = 1./trl 
-	else
-		relax = 0.
-	endif
+
+  ! set relaxation only if theta and not tracer
+  if (flag) then
+    if (trl .lt. 1.e3 .and. trl .gt. 0) relax = 1./trl 
+  else
+    relax = 0.
+  endif
   
-	! 12/17/2008: damps l=0 faster for stability (used to zero in main block)
-  !if (bl .eq. 0) relax = relax*4  ! this was not present in RBM's MS Thesis work
+  ! 12/17/2008: damps l=0 faster for stability (used to zero in main block)
+  !if (bl .eq. 0) relax = relax*4
 
   tfac = dts*((dco*(((ak**2)+(bl**2))**(n/2))) + relax)
 
@@ -1708,69 +1706,69 @@ subroutine cdf_dump(output_file,it,thB,thT,trB,trT)
   
   if ( it .eq. 0 ) then
      
-     !           Create a new NetCDF file
-     call check( nf90_create(output_file, NF90_CLOBBER .or. NF90_64BIT_OFFSET, ncid) )
+    !           Create a new NetCDF file
+    call check( nf90_create(output_file, NF90_CLOBBER .or. NF90_64BIT_OFFSET, ncid) )
      
-     !           Define dimensions
-		 call check( nf90_def_dim(ncid, "nx",   2*kmax,         vardim(1)) )
-		 call check( nf90_def_dim(ncid, "ny",   2*lmax,         vardim(2)) )
-		 call check( nf90_def_dim(ncid, "time", NF90_UNLIMITED, vardim(3)) )
+    !           Define dimensions
+    call check( nf90_def_dim(ncid, "nx",   2*kmax,         vardim(1)) )
+    call check( nf90_def_dim(ncid, "ny",   2*lmax,         vardim(2)) )
+    call check( nf90_def_dim(ncid, "time", NF90_UNLIMITED, vardim(3)) )
      
-     !           Define variables
-		 call check( nf90_def_var(ncid, "time",   NF90_FLOAT, vardim(3), varid) )
-		 call check( nf90_def_var(ncid, "thetaB", NF90_FLOAT, vardim,    varid) )
-		 call check( nf90_put_att(ncid, varid, "description", "bottom potential temperature") )
-		 call check( nf90_def_var(ncid, "thetaT", NF90_FLOAT, vardim,    varid) )
-		 call check( nf90_put_att(ncid, varid, "description", "toppom potential temperature") )
-		 if (itracer) then
-			 call check( nf90_def_var(ncid, "tracerB", NF90_FLOAT, vardim,    varid) )
-			 call check( nf90_put_att(ncid, varid, "description", "bottom tracer") )
-			 call check( nf90_def_var(ncid, "tracerT", NF90_FLOAT, vardim,    varid) )
-			 call check( nf90_put_att(ncid, varid, "description", "toppom tracer") )
-		 endif
+    !           Define variables
+    call check( nf90_def_var(ncid, "time",   NF90_FLOAT, vardim(3), varid) )
+    call check( nf90_def_var(ncid, "thetaB", NF90_FLOAT, vardim,    varid) )
+    call check( nf90_put_att(ncid, varid, "description", "bottom potential temperature") )
+    call check( nf90_def_var(ncid, "thetaT", NF90_FLOAT, vardim,    varid) )
+    call check( nf90_put_att(ncid, varid, "description", "toppom potential temperature") )
+    if (itracer) then
+      call check( nf90_def_var(ncid, "tracerB", NF90_FLOAT, vardim,    varid) )
+      call check( nf90_put_att(ncid, varid, "description", "bottom tracer") )
+      call check( nf90_def_var(ncid, "tracerT", NF90_FLOAT, vardim,    varid) )
+      call check( nf90_put_att(ncid, varid, "description", "toppom tracer") )
+    endif
      
-		 call check( nf90_put_att(ncid, NF90_GLOBAL, "model", model) )
-		 call check( nf90_put_att(ncid, NF90_GLOBAL, "ntims", ntims) )
-		 call check( nf90_put_att(ncid, NF90_GLOBAL, "dt", dt)       )
-		 call check( nf90_put_att(ncid, NF90_GLOBAL, "iplot", iplot) )
-		 call check( nf90_put_att(ncid, NF90_GLOBAL, "XL", XL)       )
-		 call check( nf90_put_att(ncid, NF90_GLOBAL, "YL", YL)       )
-		 call check( nf90_put_att(ncid, NF90_GLOBAL, "H", H)         )
-		 call check( nf90_put_att(ncid, NF90_GLOBAL, "Ross", Ross)   )
-		 call check( nf90_put_att(ncid, NF90_GLOBAL, "gamma", gamma) )
-		 call check( nf90_put_att(ncid, NF90_GLOBAL, "n", n)         )
-		 call check( nf90_put_att(ncid, NF90_GLOBAL, "tau", tau)     )
-		 call check( nf90_put_att(ncid, NF90_GLOBAL, "trl", trl)     )
-		 call check( nf90_put_att(ncid, NF90_GLOBAL, "amu", amu)     )
-		 call check( nf90_put_att(ncid, NF90_GLOBAL, "shear", shear) )
-		 
-		 call check( nf90_enddef(ncid) )
-   	 call check( nf90_close(ncid)  )
+    call check( nf90_put_att(ncid, NF90_GLOBAL, "model", model) )
+    call check( nf90_put_att(ncid, NF90_GLOBAL, "ntims", ntims) )
+    call check( nf90_put_att(ncid, NF90_GLOBAL, "dt", dt)       )
+    call check( nf90_put_att(ncid, NF90_GLOBAL, "iplot", iplot) )
+    call check( nf90_put_att(ncid, NF90_GLOBAL, "XL", XL)       )
+    call check( nf90_put_att(ncid, NF90_GLOBAL, "YL", YL)       )
+    call check( nf90_put_att(ncid, NF90_GLOBAL, "H", H)         )
+    call check( nf90_put_att(ncid, NF90_GLOBAL, "Ross", Ross)   )
+    call check( nf90_put_att(ncid, NF90_GLOBAL, "gamma", gamma) )
+    call check( nf90_put_att(ncid, NF90_GLOBAL, "n", n)         )
+    call check( nf90_put_att(ncid, NF90_GLOBAL, "tau", tau)     )
+    call check( nf90_put_att(ncid, NF90_GLOBAL, "trl", trl)     )
+    call check( nf90_put_att(ncid, NF90_GLOBAL, "amu", amu)     )
+    call check( nf90_put_att(ncid, NF90_GLOBAL, "shear", shear) )
+
+    call check( nf90_enddef(ncid) )
+    call check( nf90_close(ncid)  )
 
   else 
      
-     time = (it-1)*dt
-     k = 1 + (it-1)/iplot
+    time = (it-1)*dt
+    k = 1 + (it-1)/iplot
      
-     count(1) = 2*kmax;  start(1) = 1
-     count(2) = 2*lmax;  start(2) = 1
-     count(3) = 1;       start(3) = k
+    count(1) = 2*kmax;  start(1) = 1
+    count(2) = 2*lmax;  start(2) = 1
+    count(3) = 1;       start(3) = k
      
-     !           Open the netCDF file, write variables and close
-     call check( nf90_open(output_file, NF90_WRITE, ncid) )
-		 call check( nf90_inq_varid(ncid, "time",   varid) )
-		 call check( nf90_put_var(ncid, varid, time, (/k/))       )
-		 call check( nf90_inq_varid(ncid, "thetaB", varid) )
-		 call check( nf90_put_var(ncid, varid, thB, start, count) )
-		 call check( nf90_inq_varid(ncid, "thetaT", varid) )
-		 call check( nf90_put_var(ncid, varid, thT, start, count) )
-		 if (itracer) then
-			 call check( nf90_inq_varid(ncid, "tracerB", varid) )
-			 call check( nf90_put_var(ncid, varid, trB, start, count) )
-			 call check( nf90_inq_varid(ncid, "tracerT", varid) )
-			 call check( nf90_put_var(ncid, varid, trT, start, count) )
-		 endif
-	   call check( nf90_close(ncid) )
+    !           Open the netCDF file, write variables and close
+    call check( nf90_open(output_file, NF90_WRITE, ncid) )
+    call check( nf90_inq_varid(ncid, "time",   varid) )
+    call check( nf90_put_var(ncid, varid, time, (/k/))       )
+    call check( nf90_inq_varid(ncid, "thetaB", varid) )
+    call check( nf90_put_var(ncid, varid, thB, start, count) )
+    call check( nf90_inq_varid(ncid, "thetaT", varid) )
+    call check( nf90_put_var(ncid, varid, thT, start, count) )
+    if (itracer) then
+      call check( nf90_inq_varid(ncid, "tracerB", varid) )
+      call check( nf90_put_var(ncid, varid, trB, start, count) )
+      call check( nf90_inq_varid(ncid, "tracerT", varid) )
+      call check( nf90_put_var(ncid, varid, trT, start, count) )
+    endif
+    call check( nf90_close(ncid) )
      
   endif
   
