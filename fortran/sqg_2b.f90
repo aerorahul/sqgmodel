@@ -498,7 +498,7 @@ SUBROUTINE xy_to_sp(xy,sp,mx,ny,km,lm)
   implicit none
 
   integer,                       intent(in)  :: mx,ny,km,lm
-  complex, dimension(mx,ny),     intent(in)  :: xy
+  complex, dimension(:,:),       intent(in)  :: xy
   complex, dimension(2*km,2*lm), intent(out) :: sp
 
   complex, dimension(mx,ny) :: copy
@@ -547,9 +547,9 @@ SUBROUTINE sp_to_xy(sp,xy,km,lm,mx,ny)
 
   implicit none
 
-  integer,                       intent(in)  :: km,lm,mx,ny
-  complex, dimension(2*km,2*lm), intent(in)  :: sp
-  real,    dimension(mx,ny),     intent(out) :: xy
+  integer,                   intent(in)  :: km,lm,mx,ny
+  complex, dimension(:,:),   intent(in)  :: sp
+  real,    dimension(mx,ny), intent(out) :: xy
 
   complex, dimension(mx,ny) :: copy
   integer                   :: kmp1,lmp1,k,l,k2,l2,kk,ll
@@ -815,11 +815,11 @@ SUBROUTINE dump(thspB,thspT,ilam,lam,it,outfile)
 
   implicit none
 
-  complex, dimension(2*kmax,2*lmax), intent(in) :: thspB,thspT
-  logical,                           intent(in) :: ilam
-  real,                              intent(in) :: lam
-  integer,                           intent(in) :: it
-  character(len=*),                  intent(in) :: outfile
+  complex, dimension(:,:), intent(in) :: thspB,thspT
+  logical,                 intent(in) :: ilam
+  real,                    intent(in) :: lam
+  integer,                 intent(in) :: it
+  character(len=*),        intent(in) :: outfile
 
   complex, dimension(2*kmax,2*lmax) :: copy
   complex, dimension(2*kmax,2*lmax) :: thbB,thbT
@@ -869,7 +869,8 @@ SUBROUTINE advect(u,v,f_x,f_y,fb_y,h_x,h_y,ub,tf,lam,lap)
 
   implicit none
 
-  real, dimension(mmax,nmax), intent(in)  :: u,v,f_x,f_y,fb_y,ub,h_x,h_y,lap
+  real, dimension(:,:), intent(in)  :: u,v,f_x,f_y,fb_y,ub,h_x,h_y,lap
+  !real, dimension(mmax,nmax), intent(in)  :: u,v,f_x,f_y,fb_y,ub,h_x,h_y,lap
   real,                       intent(in)  :: lam
   real, dimension(mmax,nmax), intent(out) :: tf
 
@@ -1178,9 +1179,9 @@ SUBROUTINE d_s2b(temp_in,temp_out,dflag,dn)
 
   implicit none
 
-  complex, dimension(2*kmax,2*lmax) , intent(in)  :: temp_in,dn
-  integer,                            intent(in)  :: dflag
-  complex, dimension(mmax,nmax),      intent(out) :: temp_out
+  complex, dimension(:,:),       intent(in)  :: temp_in,dn
+  integer,                       intent(in)  :: dflag
+  complex, dimension(mmax,nmax), intent(out) :: temp_out
 
   integer :: k,l,kk,ll
 
@@ -1219,7 +1220,7 @@ SUBROUTINE d_s2s(temp_in,temp_out,dflag,dn)
 
   implicit none
 
-  complex, dimension(2*kmax,2*lmax), intent(in)  :: temp_in,dn
+  complex, dimension(:,:),           intent(in)  :: temp_in,dn
   integer,                           intent(in)  :: dflag
   complex, dimension(2*kmax,2*lmax), intent(out) :: temp_out
 
@@ -1243,10 +1244,10 @@ SUBROUTINE d_b2b(temp_in,temp_out,dflag,dn)
 
   implicit none
 
-  complex, dimension(mmax,nmax),     intent(in)  :: temp_in
-  complex, dimension(2*kmax,2*lmax), intent(in)  :: dn
-  integer,                           intent(in)  :: dflag
-  complex, dimension(mmax,nmax),     intent(out) :: temp_out
+  complex, dimension(:,:),       intent(in)  :: temp_in
+  complex, dimension(:,:),       intent(in)  :: dn
+  integer,                       intent(in)  :: dflag
+  complex, dimension(mmax,nmax), intent(out) :: temp_out
 
   integer :: k,l,kk,ll
 
@@ -1290,8 +1291,8 @@ SUBROUTINE d_b2s(temp_in,temp_out,dflag,dn)
 
   implicit none
 
-  complex, dimension(mmax,nmax),     intent(in)  :: temp_in
-  complex, dimension(2*kmax,2*lmax), intent(in)  :: dn
+  complex, dimension(:,:),           intent(in)  :: temp_in
+  complex, dimension(:,:),           intent(in)  :: dn
   integer,                           intent(in)  :: dflag
   complex, dimension(2*kmax,2*lmax), intent(out) :: temp_out
   integer :: k,l,kk,ll
