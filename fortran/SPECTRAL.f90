@@ -49,12 +49,12 @@ MODULE spectral
   character(len=2), parameter :: path    = './' ! file location
 
   ! do not modify below this point:
-  integer, parameter :: kmid=kmax/2, lmid=lmax/2,         &
-       &                mmax=3.125*kmax, nmax=3.125*lmax, &
-       &                l2=nmax-lmax, k2=mmax-kmax,       &
-       &                lmaxp1=lmax+1, kmaxp1=kmax+1
-  real,    parameter :: facx=2.*pi/XL, facy=2.*pi/YL, eps=0.1
-  real,    parameter :: amiss=-99., hwp=5.539118, ryl=2.*pi/hwp
+  integer, parameter :: kmid=kmax/2,     lmid=lmax/2,     &
+                        mmax=3.125*kmax, nmax=3.125*lmax, &
+                        l2=nmax-lmax,    k2=mmax-kmax,    &
+                        lmaxp1=lmax+1,   kmaxp1=kmax+1
+  real,    parameter :: facx=2.*pi/XL,   facy=2.*pi/YL
+  real,    parameter :: hwp=5.539118,    ryl=2.*pi/hwp
 
   ! START pvinv specific-------------------------------------------------------
   real,    parameter :: ZH    = H     ! z domain length

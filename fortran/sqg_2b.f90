@@ -133,7 +133,7 @@ SUBROUTINE main
     if (iterr .and. Ross .eq. 0) then 
         call terrain(hx,hy,hu,hv)
         call invert(thspB,0*thspT,thxB,thxT,thyB,thyT,vB,vT,uB,uT,thbB,thbT, &
-          &         thbyB,thbyT,ulinB,ulinT,first, .TRUE.,.TRUE.,0*lam,sB,sbold,lap)
+                    thbyB,thbyT,ulinB,ulinT,first, .TRUE.,.TRUE.,0*lam,sB,sbold,lap)
         hu = uT; hv = vT
         if (verbose .gt. 1) print*,'extrema hx = ',maxval(hx),minval(hx)
         if (verbose .gt. 1) print*,'extrema hy = ',maxval(hy),minval(hy)
@@ -194,7 +194,7 @@ SUBROUTINE main
             cxT = maxval(abs(uT+ulinT))*dt/(XL/real(2*kmax))
             cyT = maxval(abs(vT))*dt/(YL/real(2*lmax))
             write(*,'(A23,F10.3,4F8.3)') 'time,cxB,cyB,cxT,cyT = ', &
-            &            real(itime-1)*dt,cxB,cyB,cxT,cyT
+                              real(itime-1)*dt,cxB,cyB,cxT,cyT
         endif
 
         ! FFT back to spectral space:
@@ -228,7 +228,7 @@ END SUBROUTINE main
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE invert(ithspB,ithspT,thxBr,thxTr,thyBr,thyTr,vBr,vTr,uBr,uTr, &
-     &    thbB,thbT,thbyB,thbyT,ulinB,ulinT,first,bot,top,lam,sB,sold,sblre)
+           thbB,thbT,thbyB,thbyT,ulinB,ulinT,first,bot,top,lam,sB,sold,sblre)
 
   ! Invert PV and transform to a larger grid for de-aliasing.
 
@@ -609,7 +609,7 @@ SUBROUTINE diff(dco)
   temp = 1
   !      dco = (((real(facx*kmax)**n) + (real(facy*lmax)**n))*tau)**(-1)
   dco = 1.0/(((real(facx*kmax)**2) &
-       &          + (real(facy*lmax)**2))**(n/2)*tau)
+            + (real(facy*lmax)**2))**(n/2)*tau)
   dco = temp*dco
   if (dco .lt. 0.) dco = -1.*dco
 
@@ -783,7 +783,7 @@ FUNCTION ran1(idum)
   INTEGER idum,IA,IM,IQ,IR,NTAB,NDIV
   REAL ran1,AM,EPS,RNMX
   PARAMETER (IA=16807,IM=2147483647,AM=1./IM,IQ=127773,IR=2836, &
-       & NTAB=32,NDIV=1+(IM-1)/NTAB,EPS=1.2e-7,RNMX=1.-EPS)
+             NTAB=32,NDIV=1+(IM-1)/NTAB,EPS=1.2e-7,RNMX=1.-EPS)
   INTEGER j,k,iv(NTAB),iy
   SAVE iv,iy
   DATA iv /NTAB*0/, iy /0/
@@ -894,10 +894,10 @@ SUBROUTINE advect(u,v,f_x,f_y,fb_y,h_x,h_y,ub,tf,lam,lap)
 
     if (linear) then 
       tf(i,j) = -((v(i,j) * (fb_y(i,j) - lam)) + &
-             &                 (ub(i,j) * f_x(i,j)))
+                 (ub(i,j) * f_x(i,j)))
     else
       tf(i,j) = -((v(i,j) * (f_y(i,j) + fb_y(i,j) - lam)) + &
-             &                 ((u(i,j) + ub(i,j)) * f_x(i,j)))
+       ((u(i,j) + ub(i,j)) * f_x(i,j)))
     endif
 
     tf(i,j) = tf(i,j) - (ekman(x,y)*lap(i,j)) ! Ekman layer
@@ -948,7 +948,7 @@ SUBROUTINE thadvB(dat,tend,dco,first)
      ak = facx*real(k - 1); bl = facy*real(l - 1)
      ttsp = tend(k,l)/real(mmax*nmax)
      call tstep_ab(ttsp,dat(k,l),told(k,l),told2(k,l), &
-          &        ak,bl,dco,dts)
+                   ak,bl,dco,dts)
 
      kk = kmax + k; ll = lmax + l
      ! +/-kmax <= k <= -1; 0 <= l <= +/-lmax:
@@ -957,7 +957,7 @@ SUBROUTINE thadvB(dat,tend,dco,first)
         ak = -1.*facx*real(kmaxp1 - k); bl = facy*real(l - 1)
         ttsp = tend(k2+k,l)/real(mmax*nmax)
         call tstep_ab(ttsp,dat(kk,l),told(kk,l), &
-             &           told2(kk,l),ak,bl,dco,dts)
+                      told2(kk,l),ak,bl,dco,dts)
      endif
      ! 0 <= k <= +/-kmax; +/-lmax <= l <= -1:
      !         if (l .le. lmax) then
@@ -965,7 +965,7 @@ SUBROUTINE thadvB(dat,tend,dco,first)
         ak = facx*real(k-1); bl = -1.*facy*real(lmaxp1 - l)
         ttsp = tend(k,l2+l)/real(mmax*nmax)
         call tstep_ab(ttsp,dat(k,ll),told(k,ll), &
-             &           told2(k,ll),ak,bl,dco,dts)
+                      told2(k,ll),ak,bl,dco,dts)
      endif
      ! +/-kmax <= k <= -1; +/-lmax <= l <= -1:
      !         if (k .le. kmax .and. l .le. lmax) then
@@ -973,7 +973,7 @@ SUBROUTINE thadvB(dat,tend,dco,first)
         ak=-1.*facx*real(kmaxp1 - k); bl=-1.*facy*real(lmaxp1 - l)
         ttsp = tend(k2+k,l2+l)/real(mmax*nmax)
         call tstep_ab(ttsp,dat(kk,ll),told(kk,ll), &
-             &         told2(kk,ll),ak,bl,dco,dts)
+                      told2(kk,ll),ak,bl,dco,dts)
      endif
   enddo; enddo
 
@@ -1012,7 +1012,7 @@ SUBROUTINE thadvT(dat,tend,dco,first)
      ak = facx*real(k - 1); bl = facy*real(l - 1)
      ttsp = tend(k,l)/real(mmax*nmax)
      call tstep_ab(ttsp,dat(k,l),told(k,l),told2(k,l), &
-          &        ak,bl,dco,dts)
+                   ak,bl,dco,dts)
 
      kk = kmax + k; ll = lmax + l
      ! +/-kmax <= k <= -1; 0 <= l <= +/-lmax:
@@ -1021,7 +1021,7 @@ SUBROUTINE thadvT(dat,tend,dco,first)
         ak = -1.*facx*real(kmaxp1 - k); bl = facy*real(l - 1)
         ttsp = tend(k2+k,l)/real(mmax*nmax)
         call tstep_ab(ttsp,dat(kk,l),told(kk,l), &
-             &           told2(kk,l),ak,bl,dco,dts)
+                      told2(kk,l),ak,bl,dco,dts)
      endif
      ! 0 <= k <= +/-kmax; +/-lmax <= l <= -1:
      !         if (l .le. lmax) then
@@ -1029,7 +1029,7 @@ SUBROUTINE thadvT(dat,tend,dco,first)
         ak = facx*real(k-1); bl = -1.*facy*real(lmaxp1 - l)
         ttsp = tend(k,l2+l)/real(mmax*nmax)
         call tstep_ab(ttsp,dat(k,ll),told(k,ll), &
-             &           told2(k,ll),ak,bl,dco,dts)
+                      told2(k,ll),ak,bl,dco,dts)
      endif
      ! +/-kmax <= k <= -1; +/-lmax <= l <= -1:
      !         if (k .le. kmax .and. l .le. lmax) then
@@ -1037,7 +1037,7 @@ SUBROUTINE thadvT(dat,tend,dco,first)
         ak=-1.*facx*real(kmaxp1 - k); bl=-1.*facy*real(lmaxp1 - l)
         ttsp = tend(k2+k,l2+l)/real(mmax*nmax)
         call tstep_ab(ttsp,dat(kk,ll),told(kk,ll), &
-             &         told2(kk,ll),ak,bl,dco,dts)
+                      told2(kk,ll),ak,bl,dco,dts)
      endif
   enddo; enddo
 
@@ -1262,20 +1262,17 @@ SUBROUTINE d_b2b(temp_in,temp_out,dflag,dn)
 
      ! +/-kmax <= k <= -1; 0 <= l <= +/-lmax:
      if (k .gt. 1) then
-        if (dn(kk,l) .ne. 0)  &
-             &           temp_out(k2+k,l) = (dn(kk,l)**dflag)*temp_in(k2+k,l)
+        if (dn(kk,l) .ne. 0) temp_out(k2+k,l) = (dn(kk,l)**dflag)*temp_in(k2+k,l)
      endif
 
      ! 0 <= k <= +/-kmax; +/-lmax <= l <= -1:
      if (l .gt. 1) then
-        if (dn(k,ll) .ne. 0) &
-             &           temp_out(k,l2+l) = (dn(k,ll)**dflag)*temp_in(k,l2+l)
+        if (dn(k,ll) .ne. 0) temp_out(k,l2+l) = (dn(k,ll)**dflag)*temp_in(k,l2+l)
      endif
 
      ! +/-kmax <= k <= -1; +/-lmax <= l <= -1:
      if ((k .gt. 1) .and. (l .gt. 1)) then
-        if (dn(kk,ll) .ne. 0)  &
-             &           temp_out(k2+k,l2+l) = (dn(kk,ll)**dflag)*temp_in(k2+k,l2+l)
+        if (dn(kk,ll) .ne. 0) temp_out(k2+k,l2+l) = (dn(kk,ll)**dflag)*temp_in(k2+k,l2+l)
      endif
   enddo; enddo
 
@@ -1338,8 +1335,7 @@ FUNCTION HW_ubar(y,z)
   yp = y - (0.5*(YL - hwp))
   if (yp .lt. 0.  .and. amu .ne. 0) yp = 0.
   if (yp .gt. hwp .and. amu .ne. 0) yp = hwp
-  HW_ubar = shear*z - &
-       &     (amu/2.)*(z + ((sinh(ryl*z)/sinh(ryl))*cos(yp*ryl)))
+  HW_ubar = shear*z - (amu/2.)*(z + ((sinh(ryl*z)/sinh(ryl))*cos(yp*ryl)))
 
   return
 END FUNCTION HW_ubar
@@ -1364,8 +1360,7 @@ FUNCTION HW_theta(y,z)
   yp = y - (0.5*(YL - hwp))
   if (yp .lt. 0. .and. amu .ne. 0) yp = 0
   if (yp .gt. hwp .and. amu .ne. 0) yp = hwp
-  HW_theta = (-shear*yp)+(amu/2.)* &
-       &     (yp+(hiccup*(cosh(ryl*z)/sinh(ryl))*sin(yp*ryl)))
+  HW_theta = (-shear*yp)+(amu/2.) * (yp+(hiccup*(cosh(ryl*z)/sinh(ryl))*sin(yp*ryl)))
   HW_theta = amp*HW_theta
 
   return
@@ -1391,8 +1386,7 @@ FUNCTION HW_thetay(y,z)
      if (yp .lt. 0 .or. yp .gt. hwp) then 
         HW_thetay = 0.
      else
-        HW_thetay = -shear + (amu/2.) + &
-          &        ((amu*ryl/2.)*(cosh(ryl*z)*cos(yp*ryl))/sinh(ryl))
+        HW_thetay = -shear + (amu/2.) + ((amu*ryl/2.)*(cosh(ryl*z)*cos(yp*ryl))/sinh(ryl))
      endif
   endif
   return
@@ -1618,8 +1612,8 @@ SUBROUTINE terrain(hx,hy,hu,hv)
      call xy_to_sp(cmplx(hspR,0.),hspC,2*kmax,2*lmax,kmax,lmax)
      if ( verbose .gt. 1 ) print*,'max topo spectral=',maxval(abs(hspC))
      call invert(-hspC,Cblank,Rblank,Rblank,Rblank,Rblank,Rblank, & 
-          & hv,Rblank,hu,Cblank,Cblank,Rblank,Rblank,Rblank, & 
-          & Rblank,.TRUE.,.TRUE.,.TRUE.,lam,Cblank,Cblank,Rblank)
+                 hv,Rblank,hu,Cblank,Cblank,Rblank,Rblank,Rblank, & 
+                 Rblank,.TRUE.,.TRUE.,.TRUE.,lam,Cblank,Cblank,Rblank)
      ! hu and hv have the tropo winds due to topography
      if ( verbose .gt. 1 ) print*,'max tropo winds due to topography: ',maxval(abs(hu)),maxval(abs(hv))
   endif
