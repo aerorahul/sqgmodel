@@ -43,7 +43,7 @@ endif
 #------------------------------------------------------------
 F90    = ifort
 FFLAGS = -g -check -traceback $(mFFLAGS) # Use these flags for development / testing
-FFLAGS = -w -O3 -ftz -align all -fno-alias -fp-model precise -convert big_endian -unroll5 $(mFFLAGS) 
+FFLAGS = -w -O3 -ftz -align all -fno-alias -fp-model precise -convert big_endian -unroll5 -parallel $(mFFLAGS) 
 RM     = rm -f
 SRC    = .
 BIN    = .
