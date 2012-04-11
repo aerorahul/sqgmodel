@@ -22,7 +22,6 @@ MODULE spectral
   logical, parameter :: linear  = .FALSE.       ! flag for linear advection
   logical, parameter :: trop    = .FALSE.       ! flag for tropopause geometry
   logical, parameter :: inorm   = .FALSE.       ! flag for computing norm
-  logical, parameter :: itracer = .FALSE.       ! flag for tracer
 
   real,    parameter :: pi = 4.0*atan(1.0)      ! pi = 3.14159265358979323846264338327950288419 
 
