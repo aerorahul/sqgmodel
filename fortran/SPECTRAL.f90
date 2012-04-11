@@ -44,14 +44,15 @@ MODULE spectral
   real,    parameter :: Ross     = 0.0          ! Rossby number (0.0, 0.1)
   real,    parameter :: gamma    = 0.0          ! Ekman parameter (0.0, 0.075, 0.075*1.5)
   integer, parameter :: n        = 8            ! diffusion parameter
+  real,    parameter :: hamp     = 0.6          ! height of terrain (0.6)
 
   integer,          parameter :: verbose = 2    ! 0:no mesgs; 1:imp only; 2:all
   character(len=2), parameter :: path    = './' ! file location
 
   ! do not modify below this point:
   integer, parameter :: kmid=kmax/2, lmid=lmax/2,         &
-	     &                mmax=3.125*kmax, nmax=3.125*lmax, &
-			 &                l2=nmax-lmax, k2=mmax-kmax,       &
+       &                mmax=3.125*kmax, nmax=3.125*lmax, &
+       &                l2=nmax-lmax, k2=mmax-kmax,       &
        &                lmaxp1=lmax+1, kmaxp1=kmax+1
   real,    parameter :: facx=2.*pi/XL, facy=2.*pi/YL, eps=0.1
   real,    parameter :: amiss=-99., hwp=5.539118, ryl=2.*pi/hwp
@@ -89,7 +90,7 @@ CONTAINS
 
     return
 
-  end SUBROUTINE scaling
+  END SUBROUTINE scaling
 
   ! rolv's routine to get dimensional dx, dy, dz, and dt
   SUBROUTINE dx_echo(dxs,dys,dzs,dts)
@@ -106,6 +107,6 @@ CONTAINS
     dts = Ls*dt/Us           ! seconds
 
     return
-  end SUBROUTINE dx_echo
+  END SUBROUTINE dx_echo
   ! END pvinv specific-------------------------------------------------------
 ENDMODULE spectral

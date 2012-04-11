@@ -11,59 +11,63 @@
 ! sQG dynamics are recovered for: Ross=0.0, H-->\infty
 !  2D dynamics are recovered for: Ross=0.0, H-->0; \theta->\theta*H
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 PROGRAM sqg_spectral
 
+    use spectral
+
     call main
+
     stop
 
-END PROGRAM sqg_spectral
+CONTAINS
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE main
 
-    USE spectral
-
-    IMPLICIT NONE
+    implicit none
 
     ! spectral values
-    complex, dimension(2*kmax,2*lmax) :: thspB,thbB,trspB
-    complex, dimension(2*kmax,2*lmax) :: thspT,thbT,trspT
+    complex, dimension(2*kmax,2*lmax) :: thspB,thbB,thspT,thbT
+    complex, dimension(2*kmax,2*lmax) :: trspB,trspT
     complex, dimension(2*kmax,2*lmax) :: sbold,sB
-    ! grid point values
-    real,    dimension(mmax,nmax) :: thxB,thyB,vB,uB,trxB,tryB
-    real,    dimension(mmax,nmax) :: thxT,thyT,vT,uT,trxT,tryT
     ! spectral work arrays
-    real,    dimension(2*kmax,2*lmax) :: thxyB,thpxyB
-    real,    dimension(2*kmax,2*lmax) :: thxyT,thpxyT
-    real,    dimension(2*kmax,2*lmax) :: trxyB
-    real,    dimension(2*kmax,2*lmax) :: trxyT
+    real,    dimension(2*kmax,2*lmax) :: thxyB,thpxyB,thxyT,thpxyT
+    real,    dimension(2*kmax,2*lmax) :: trxyB,trxyT
+    ! grid point values
+    real,    dimension(mmax,nmax) :: thxB,thyB,thxT,thyT
+    real,    dimension(mmax,nmax) :: uB,vB,uT,vT
+    real,    dimension(mmax,nmax) :: trxB,tryB,trxT,tryT
     ! tendencies
-    real,    dimension(mmax,nmax) :: lap,blank,hx,hy,hu,hv 
-    real,    dimension(mmax,nmax) :: tthB,ttrB
-    real,    dimension(mmax,nmax) :: tthT,ttrT
-    complex, dimension(mmax,nmax) :: tthspB,ttrspB
-    complex, dimension(mmax,nmax) :: tthspT,ttrspT
+    real,    dimension(mmax,nmax) :: lap,hx,hy,hu,hv 
+    real,    dimension(mmax,nmax) :: tthB,tthT
+    real,    dimension(mmax,nmax) :: ttrB,ttrT
+    complex, dimension(mmax,nmax) :: tthspB,tthspT
+    complex, dimension(mmax,nmax) :: ttrspB,ttrspT
     ! basic state
-    real,    dimension(mmax,nmax) :: ulinB,thbyB
-    real,    dimension(mmax,nmax) :: ulinT,thbyT
+    real,    dimension(mmax,nmax) :: ulinB,ulinT
+    real,    dimension(mmax,nmax) :: thbyB,thbyT
     ! misc
-    real    :: dx,dx2,dy,dy2,x,asx,asy,asig,rr,ctemp,rtemp,ak,bl,dco,btc
-    real    :: hamp,amp,ran1,noise,time,lam
-    real    :: cxB,cyB
-    real    :: cxT,cyT
-    integer :: i,j,k,l,irec,irecl,LL,MM,idu,itime,kk,iseed
-    logical :: first,bot,top
+    complex, dimension(2*kmax,2*lmax) :: Cblank
+    real,    dimension(2*kmax,2*lmax) :: Rblanks
+    real,    dimension(mmax,nmax)     :: Rblankb
+    real                              :: dco,lam,time
+    real                              :: cxB,cyB,cxT,cyT
+    integer                           :: itime
+    logical                           :: first,bot,top
     ! output
-    character(len=64) :: smatfile, finalfile
+    character(len=64) :: smatfile,finalfile
 
     !!!!!!!!!!!!!!!!!!!!!!!!
     ! Start of executable: !
     !!!!!!!!!!!!!!!!!!!!!!!!
 
+    Rblanks = 0.; Rblankb = 0.
+    Cblank  = 0.
+
     if (verbose .gt. 0) print *,'Running with Rossby number: ', Ross
 
-    blank = 0.
-
-    ! initialize diffusion (n,kmax,lmax,tau,dco):
+    ! initialize diffusion: 
     call diff(dco)
 
     ! initialize (read from Matlab file or restart file, option to add pert. to restart file):
@@ -83,8 +87,8 @@ SUBROUTINE main
     if (itracer) call init_tracer(trxyB,trxyT)
 
     if (verbose .gt. 0) print *,'...writing to netCDF files'
-    smatfile = trim(adjustl(path) // "smat.nc")
-    call cdf_dump(smatfile,0)
+    smatfile = trim(adjustl(path)) // 'smat.nc'
+    call write_diag(smatfile,0,Rblanks,Rblanks,Rblanks,Rblanks)
 
     ! advection flags
     top = .TRUE.; bot = .TRUE.
@@ -119,9 +123,9 @@ SUBROUTINE main
         call init_jet(thbB,thbT,thbyB,thbyT,ulinB,ulinT,lam)
         ulinB = ulinB + 0; ulinT = ulinT - 0*H*lam     ! barotropic wind (Ross = 0!)
 
-        ! write basic state to disk (linear shear:=  ON : 1, OFF : 0)
-        call cdf_dump(trim(adjustl(path) // "base.nc"),0)
-        call dump(thbB,thbT,blank,blank,1,lam,1,trim(adjustl(path) // 'base.nc'))
+        ! write basic state to disk (linear shear:=  ON : .TRUE., OFF : .FALSE.)
+        call write_diag(trim(adjustl(path)) // 'base.nc',0,Rblanks,Rblanks,Rblanks,Rblanks)
+        call dump(thbB,thbT,Cblank,Cblank,.TRUE.,lam,1,trim(adjustl(path)) // 'base.nc')
 
     else
 
@@ -129,19 +133,18 @@ SUBROUTINE main
 
     endif
 
-    irec = 0; first = .TRUE.
+    first = .TRUE.
     if (verbose .gt. 1) print*,'lam = ',lam
     if (verbose .gt. 1) print*,'extrema ulinT = ',maxval(ulinT),minval(ulinT)
 
-    open(21,file = trim(adjustl(path) // 'mean.dat'),status='replace')
+    open(21,file = trim(adjustl(path)) // 'mean.dat',status='replace')
     write(21,*) 'Mean theta, time:'; close(21)
 
     ! initialize terrain:
-    hamp = 0.6
     hu = 0.; hv = 0.; hx = 0.; hy = 0.
     if (verbose .gt. 1)   print*,'iterr = ',iterr
     if (iterr .and. Ross .eq. 0) then 
-        call terrain(hamp,hx,hy,hu,hv)
+        call terrain(hx,hy,hu,hv)
         call invert(thspB,0*thspT,thxB,thxT,thyB,thyT,vB,vT,uB,uT,thbB,thbT, &
           &         thbyB,thbyT,ulinB,ulinT,first, .TRUE.,.TRUE.,0*lam,sB,sbold,lap)
         hu = uT; hv = vT
@@ -161,7 +164,7 @@ SUBROUTINE main
 
         time = real(itime-1)*dt
         if (mod((itime-1),imean) .eq. 0) then
-            open(21,file=path//'mean.dat',position='append')
+            open(21,file=trim(adjustl(path)) // 'mean.dat',position='append')
             if (verbose .gt. 0) write(6,*) '...writing to mean.dat'
             write(21,*)  real(thspB(1,1)),real(thspT(1,1))
             write(21,*) time
@@ -175,10 +178,10 @@ SUBROUTINE main
             cyT = 0.
         endif
 
-        ! save old streamfunction for Ekman calculation.
+        ! save old streamFUNCTION for Ekman calculation.
         sbold = sB; if (first) sbold = 0.
 
-        ! Invert theta for streamfunction; compute gradients for advection:
+        ! Invert theta for streamFUNCTION; compute gradients for advection:
         call invert(thspB,thspT,thxB,thxT,thyB,thyT,vB,vT,uB,uT,thbB,thbT,thbyB,thbyT,ulinB,ulinT,first,bot,top,lam,sB,sbold,lap)
 
         ! Invert tracer to compute gradients for advection:
@@ -192,18 +195,18 @@ SUBROUTINE main
         ! write data to da file for plots (last entry for linear field +):
         if (mod((itime-1),iplot) .eq. 0) then
             if (hw) then ! add basic state to output
-                call dump(thspB+thbB,thspT+thbT,trspB,trspT,1,lam,itime,smatfile)
+                call dump(thspB+thbB,thspT+thbT,trspB,trspT,.TRUE.,lam,itime,smatfile)
             else ! no basic state
-                call dump(thspB,thspT,trspB,trspT,0,lam,itime,smatfile)
+                call dump(thspB,thspT,trspB,trspT,.FALSE.,lam,itime,smatfile)
             endif
         endif
 
         ! spectral advection:
         if (bot) call advect(uB,vB,thxB,thyB,thbyB,hx,hy,ulinB,tthB,lam,lap)
-        if (top) call advect(uT+hu,vT+hv,thxT,thyT,thbyT,blank,blank,ulinT,tthT,lam,blank)
+        if (top) call advect(uT+hu,vT+hv,thxT,thyT,thbyT,Rblankb,Rblankb,ulinT,tthT,lam,Rblankb)
         if (itracer) then
-            if (bot) call advect(uB,vB,trxB,tryB,blank,hx,hy,ulinB,ttrB,blank,lap)
-            if (top) call advect(uT+hu,vT+hv,trxT,tryT,blank,blank,blank,ulinT,ttrT,blank,blank)
+            if (bot) call advect(uB,vB,trxB,tryB,Rblankb,hx,hy,ulinB,ttrB,0.0,lap)
+            if (top) call advect(uT+hu,vT+hv,trxT,tryT,Rblankb,Rblankb,Rblankb,ulinT,ttrT,0.0,Rblankb)
         endif
 
         ! Write Courant numbers to stdout
@@ -251,49 +254,55 @@ SUBROUTINE main
     !!!!!!!!!!!!!!!!!!
 
     ! write (final + 1) time to disk for future restart:
-    finalfile = trim(adjustl(path) // "final+1.nc")
-    call cdf_dump(finalfile,0)
-    call dump(thspB,thspT,blank,blank,0,lam,1,finalfile)
+    finalfile = trim(adjustl(path)) // 'final+1.nc'
+    call write_diag(finalfile,0,Rblanks,Rblanks,Rblanks,Rblanks)
+    call dump(thspB,thspT,Cblank,Cblank,.FALSE.,lam,1,finalfile)
 
-end SUBROUTINE main
-
-!!!!!!!!!!!!!!!
-! SUBPROGRAMS !
-!!!!!!!!!!!!!!!
+END SUBROUTINE main
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE invert(ithspB,ithspT,thxBr,thxTr,thyBr,thyTr,vBr,vTr,uBr,uTr, &
      &    thbB,thbT,thbyB,thbyT,ulinB,ulinT,first,bot,top,lam,sB,sold,sblre)
 
-  USE spectral
-  IMPLICIT NONE
-
   ! Invert PV and transform to a larger grid for de-aliasing.
 
-  complex, intent(in), dimension(2*kmax,2*lmax) :: ithspB,ithspT, &
-       &                                               thbB,thbT,sold
-  complex, intent(out), dimension(2*kmax,2*lmax) :: sB
-  real, intent(in) :: lam
-  real, intent(in), dimension(mmax,nmax) :: thbyB,thbyT,ulinB,ulinT
-  logical, intent(in) :: first,bot,top
-  complex, dimension(mmax,nmax) :: thxB,thxT,thyB,thyT, &
-       &                                 uB,uT,vB,vT,copy
-  real, intent(out), dimension(mmax,nmax) :: thxBr,thxTr,thyBr,thyTr, &
-       &                                           uBr,uTr,vBr,vTr,sblre
+  implicit none
 
-  complex, dimension(2*kmax,2*lmax) :: thspB,thspT,temps
-  complex, dimension(mmax,nmax) :: szspB,szspT,szzspB,szzspT, &
-       &                                 u1B,v1B,u1T,v1T,temp
+  complex, dimension(2*kmax,2*lmax), intent(in)  :: ithspB,ithspT
+  complex, dimension(2*kmax,2*lmax), intent(in)  :: thbB,thbT
+  complex, dimension(2*kmax,2*lmax), intent(in)  :: sold
+  real,    dimension(mmax,nmax),     intent(in)  :: thbyB,thbyT
+  real,    dimension(mmax,nmax),     intent(in)  :: ulinB,ulinT
+  real,                              intent(in)  :: lam
+  logical,                           intent(in)  :: first,bot,top
+  complex, dimension(2*kmax,2*lmax), intent(out) :: sB
+  real,    dimension(mmax,nmax),     intent(out) :: thxBr,thxTr,thyBr,thyTr
+  real,    dimension(mmax,nmax),     intent(out) :: uBr,uTr,vBr,vTr
+  real,    dimension(mmax,nmax),     intent(out) :: sblre
 
-  complex, dimension(2*kmax,2*lmax) :: u1spB,u1spT,v1spB,v1spT, &
-       &                                     tempspB,tempspT,htempB, &
-       &                                     htempT,tempxyB,tempxyT
+  complex, dimension(mmax,nmax) :: thxB,thxT,thyB,thyT
+  complex, dimension(mmax,nmax) :: uB,uT,vB,vT
+  complex, dimension(mmax,nmax) :: copy
 
-  complex,dimension(2*kmax,2*lmax),save:: dx,dy,dz,dzo,iz,izo,dzi,Id
-  real, dimension(mmax,nmax) :: thx,thy,u,v
-  integer, save :: pf,gf,bf
-  integer :: i,j,k,l
-  logical, save :: correct
+  complex, dimension(2*kmax,2*lmax) :: thspB,thspT
+  complex, dimension(mmax,nmax)     :: szspB,szspT,szzspB,szzspT
+  complex, dimension(mmax,nmax)     :: u1B,v1B,u1T,v1T
+
+  complex, dimension(2*kmax,2*lmax) :: temps
+  complex, dimension(2*kmax,2*lmax) :: u1spB,u1spT,v1spB,v1spT
+  complex, dimension(2*kmax,2*lmax) :: tempspB,tempspT,tempxyB,tempxyT
+  complex, dimension(2*kmax,2*lmax) :: htempB,htempT
+  complex, dimension(mmax,nmax)     :: temp
+
+  real, dimension(mmax,nmax) :: thx,thy
+  real, dimension(mmax,nmax) :: u,v
+
+  complex, dimension(2*kmax,2*lmax), save :: dx,dy,dz,dzo,iz,izo,dzi,Id
+  integer,                           save :: pf,gf,bf
+  logical,                           save :: correct
+
+  !integer :: i,j,k,l
 
 !!!!!!!!!!!!!!!!! Set-up on first time step !!!!!!!!!!!!!!!!!!!!!!!!!!
   if (first) then 
@@ -488,18 +497,18 @@ SUBROUTINE invert(ithspB,ithspT,thxBr,thxTr,thyBr,thyTr,vBr,vTr,uBr,uTr, &
   endif ! correct
 
   ! return u = u_0 + Ro * u_1; v = v_0 + Ro * v_1
-  ! (look into using the f90 "transfer" function to return real parts...)
+  ! (look into using the f90 "transfer" FUNCTION to return real parts...)
 
   thxBr = real(thxB); thyBr = real(thyB);
   thxTr = real(thxT); thyTr = real(thyT);      
   uBr = real(uB + Ross*u1B); uTr = real(uT + Ross*u1T)
   vBr = real(vB + Ross*v1B); vTr = real(vT + Ross*v1T)
 
-  ! Ekman layer calculations (need streamfunction and Laplacian.
+  ! Ekman layer calculations (need streamFUNCTION and Laplacian.
   if (gamma .gt. 0) then
      ! reset these since they were changed for next-order calculations
      thspB = ithspB; thspT = ithspT ! local copies of spectral boundary theta
-     sb = 0. ! surface O(1) streamfunction
+     sb = 0. ! surface O(1) streamFUNCTION
      call d_s2s(thspB,sB,1,-iz) ! bottom contribution
      call d_s2s(thspT,temps,1,izo) ! toppom contribution
      sB = sB + temps;
@@ -511,28 +520,26 @@ SUBROUTINE invert(ithspB,ithspT,thxBr,thxTr,thyBr,thyTr,vBr,vTr,uBr,uTr, &
   endif
 
   return
-end SUBROUTINE invert
+END SUBROUTINE invert
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE invert_tracer(itrspB,itrspT,trxBr,trxTr,tryBr,tryTr,first,bot,top)
 
-  USE spectral
-  IMPLICIT NONE
-
   ! Invert tracer feild and compute gradients for advection.
 
-  ! intent in 
-  complex, intent(in), dimension(2*kmax,2*lmax) :: itrspB,itrspT
-  logical, intent(in) :: first,bot,top
-  ! intent out
-  real, intent(out), dimension(mmax,nmax) :: trxBr,trxTr,tryBr,tryTr
-  ! local copies
-  complex, dimension(mmax,nmax) :: trxB,trxT,tryB,tryT
+  implicit none
+
+  complex,  dimension(2*kmax,2*lmax), intent(in)  :: itrspB,itrspT
+  logical,                            intent(in)  :: first,bot,top
+  real,     dimension(mmax,nmax),     intent(out) :: trxBr,trxTr,tryBr,tryTr
+
+  complex, dimension(mmax,nmax)     :: trxB,trxT,tryB,tryT
   complex, dimension(2*kmax,2*lmax) :: trspB,trspT
   
-  complex,dimension(2*kmax,2*lmax),save:: dx1,dy1,dz1,dzo1,iz1,izo1,dzi1,Id1
-  integer, save :: pf1,gf1,bf1
-  logical, save :: correct
+  complex, dimension(2*kmax,2*lmax), save :: dx1,dy1,dz1,dzo1,iz1,izo1,dzi1,Id1
+  integer,                           save :: pf1,gf1,bf1
+  logical,                           save :: correct
   
 !!!!!!!!!!!!!!!!! Set-up on first time step !!!!!!!!!!!!!!!!!!!!!!!!!!
   if (first) then 
@@ -574,9 +581,9 @@ SUBROUTINE invert_tracer(itrspB,itrspT,trxBr,trxTr,tryBr,tryTr,first,bot,top)
   trxBr = real(trxB); tryBr = real(tryB);
   trxTr = real(trxT); tryTr = real(tryT);      
 
-  return
-  
-end SUBROUTINE invert_tracer
+  return 
+END SUBROUTINE invert_tracer
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE xy_to_sp(xy,sp,mx,ny,km,lm)
@@ -585,66 +592,67 @@ SUBROUTINE xy_to_sp(xy,sp,mx,ny,km,lm)
   ! Input: xy(mx,ny) --- a grid point array.
   ! Output: sp(2*km,2*lm) --- a spectral array.
 
-  IMPLICIT NONE
+  implicit none
 
-  integer, intent(in) :: km,lm,mx,ny
-  !      real, intent(in) :: xy(mx,ny)
-  complex, intent(in) :: xy(mx,ny)
+  integer,                       intent(in)  :: mx,ny,km,lm
+  complex, dimension(mx,ny),     intent(in)  :: xy
   complex, dimension(2*km,2*lm), intent(out) :: sp
-  complex, dimension(mx,ny) :: cop
-  real :: rtemp,ctemp
-  integer :: i,j,k,l,kk,kmp1,lmp1,k2,l2,LL,MM,stat
+
+  complex, dimension(mx,ny) :: copy
+  integer                   :: kmp1,lmp1,k,l,k2,l2,kk,ll
 
   ! initialize arrays:
-  sp = 0.; cop = xy
+  sp = 0.; copy = xy
 
   kmp1 = km + 1; lmp1 = lm + 1; k2 = mx - km; l2 = ny - lm
 
-  call ft_2d(cop,mx,ny,-1)
+  call ft_2d(copy,mx,ny,-1)
 
   !      do k=1,kmp1; do l=1,lmp1
   do k=1,km; do l=1,lm
      kk = km + k; ll = lm + l
 
      ! waves: 0 <= k <= +/-kmax; 0 <= l <= +/-lmax:
-     sp(k,l) = cop(k,l)/real(mx*ny)
+     sp(k,l) = copy(k,l)/real(mx*ny)
 
      ! +/-kmax <= k <= -1; 0 <= l <= +/-lmax:
      if (k .gt. 1) then
-        sp(kk,l) = cop(k2+k,l)/real(mx*ny)
+        sp(kk,l) = copy(k2+k,l)/real(mx*ny)
      endif
 
      ! 0 <= k <= +/-kmax; +/-lmax <= l <= -1:
      if (l .gt. 1) then
-        sp(k,ll) = cop(k,l2+l)/real(mx*ny)
+        sp(k,ll) = copy(k,l2+l)/real(mx*ny)
      endif
 
      ! +/-kmax <= k <= -1; +/-lmax <= l <= -1:
      if ((k .gt. 1) .and. (l .gt. 1)) then
-        sp(kk,ll) = cop(k2+k,l2+l)/real(mx*ny)
+        sp(kk,ll) = copy(k2+k,l2+l)/real(mx*ny)
      endif
   enddo; enddo
 
   return
-end SUBROUTINE xy_to_sp
+END SUBROUTINE xy_to_sp
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE sp_to_xy(sp,xy2,km,lm,mx,ny)
+SUBROUTINE sp_to_xy(sp,xy,km,lm,mx,ny)
 
   ! Map an (km,lm) spectral array onto a _bigger_ grid point array.
   ! Input: sp(2*km,2*lm) --- a spectral array.
   ! Output: xy(mx,ny) --- a grid point array.
 
-  IMPLICIT NONE
+  implicit none
 
-  integer, intent(in) :: km,lm,mx,ny
-  real, dimension(mx,ny), intent(out) :: xy2
-  complex :: xy(mx,ny)
-  complex, intent(in) :: sp(2*km,2*lm)
-  real rtemp,ctemp
-  integer k,l,kk,ll,kmp1,lmp1,k2,l2,MM,stat
+  integer,                       intent(in)  :: km,lm,mx,ny
+  complex, dimension(2*km,2*lm), intent(in)  :: sp
+  real,    dimension(mx,ny),     intent(out) :: xy
 
-  xy = 0.
+  complex, dimension(mx,ny) :: copy
+  integer                   :: kmp1,lmp1,k,l,k2,l2,kk,ll
+
+  ! initialize arrays:
+  copy = 0.
 
   kmp1 = km + 1; lmp1 = lm + 1; k2 = mx - km; l2 = ny - lm
 
@@ -653,69 +661,70 @@ SUBROUTINE sp_to_xy(sp,xy2,km,lm,mx,ny)
      do l = 1,lm
 
         ! waves: 0 <= k <= +/-kmax; 0 <= l <= +/-lmax:
-        xy(k,l) = sp(k,l)
+        copy(k,l) = sp(k,l)
 
         kk = km + k; ll = lm + l
 
         ! +/-kmax <= k <= -1; 0 <= l <= +/-lmax:
         if (k .ge. 1) then
-           xy(k2+k,l) = sp(kk,l)
+           copy(k2+k,l) = sp(kk,l)
         endif
 
         ! 0 <= k <= +/-kmax; +/-lmax <= l <= -1:
         if (l .ge. 1) then
-           xy(k,l2+l) = sp(k,ll)
+           copy(k,l2+l) = sp(k,ll)
         endif
 
         ! +/-kmax <= k <= -1; +/-lmax <= l <= -1:
         if ((k .ge. 1) .and. (l .ge. 1)) then
-           xy(k2+k,l2+l) = sp(kk,ll)
+           copy(k2+k,l2+l) = sp(kk,ll)
         endif
      enddo !k
   enddo !l
 
-  call ft_2d(xy,mx,ny,1)
-  xy2 = real(xy)
+  call ft_2d(copy,mx,ny,1)
+  xy = real(copy)
 
   return
-end SUBROUTINE sp_to_xy
+END SUBROUTINE sp_to_xy
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE diff(dco)
-
-  USE spectral
-  IMPLICIT NONE
 
   ! Compute the diffusion coefficient for del^n diffusion (n even>0).
   ! Tau gives the e-folding time scale for damping modes at the 
   ! Nyquist frequency.
 
+  implicit none
+
   real, intent(out) :: dco
-  real in
+  real              :: temp
 
   ! 10/21/99 gjh mods...
-  !      in = (cmplx(0.,1.)**n)
-  in = 1
+  !      temp = (cmplx(0.,1.)**n)
+  temp = 1
   !      dco = (((real(facx*kmax)**n) + (real(facy*lmax)**n))*tau)**(-1)
   dco = 1.0/(((real(facx*kmax)**2) &
        &          + (real(facy*lmax)**2))**(n/2)*tau)
-  dco = in*dco
+  dco = temp*dco
   if (dco .lt. 0.) dco = -1.*dco
 
   if (verbose .gt. 1) print*,'diffusion coefficient:',dco
 
   return
-end SUBROUTINE diff
+END SUBROUTINE diff
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE init(thB,thT)
 
-  USE spectral
-  IMPLICIT NONE
-
   ! Initialize basic state and perturbation fields.
 
-  real, intent(out), dimension(2*kmax,2*lmax) :: thB,thT
+  implicit none
+
+  real, dimension(2*kmax,2*lmax), intent(out) :: thB,thT
+
   real    :: fac
   integer :: twokmax,twolmax
   integer :: ncid, dimid, varid
@@ -723,16 +732,16 @@ SUBROUTINE init(thB,thT)
   if (verbose .gt. 0)  print*,'initializing theta fields...'
   thB = 0.; thT = 0.
 
-  call check( nf90_open(path//trim('th_init.nc'), NF90_NOWRITE, ncid) )
-  call check( nf90_inq_dimid(ncid, 'nx', dimid) )
-  call check( nf90_inquire_dimension(ncid, dimid, len = twokmax) )
-  call check( nf90_inq_dimid(ncid, 'ny', dimid) )
-  call check( nf90_inquire_dimension(ncid, dimid, len = twolmax) )
-  call check( nf90_inq_varid(ncid, 'thetaB', varid) )
-  call check( nf90_get_var(ncid, varid, thB) )
-  call check( nf90_inq_varid(ncid, 'thetaT', varid) )
-  call check( nf90_get_var(ncid, varid, thT) )
-  call check( nf90_close(ncid) )
+  call nc_check( nf90_open(trim(adjustl(path)) // 'th_init.nc', NF90_NOWRITE, ncid) )
+  call nc_check( nf90_inq_dimid(ncid, 'nx', dimid) )
+  call nc_check( nf90_inquire_dimension(ncid, dimid, len = twokmax) )
+  call nc_check( nf90_inq_dimid(ncid, 'ny', dimid) )
+  call nc_check( nf90_inquire_dimension(ncid, dimid, len = twolmax) )
+  call nc_check( nf90_inq_varid(ncid, 'thetaB', varid) )
+  call nc_check( nf90_get_var(ncid, varid, thB) )
+  call nc_check( nf90_inq_varid(ncid, 'thetaT', varid) )
+  call nc_check( nf90_get_var(ncid, varid, thT) )
+  call nc_check( nf90_close(ncid) )
 
   if (twokmax .ne. 2*kmax .and. twolmax .ne. 2*lmax) then  
      print*,'x and y resolution from th_init.nc do not match SPECTRAL.f90!!!'
@@ -754,17 +763,18 @@ SUBROUTINE init(thB,thT)
   !      thB = thB/10.
 
   return
-end SUBROUTINE init
+END SUBROUTINE init
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE init_restart(thB,thT)
 
-  USE spectral
-  IMPLICIT NONE
-
   ! Initialize theta fields (from restart file).
 
-  real, intent(out), dimension(2*kmax,2*lmax) :: thB,thT
+  implicit none
+
+  real, dimension(2*kmax,2*lmax), intent(out) :: thB,thT
+
   integer :: twokmax, twolmax
   integer :: ncid, dimid, varid
 
@@ -772,16 +782,16 @@ SUBROUTINE init_restart(thB,thT)
   thB = 0.; thT = 0.
 
   ! load from a restart file (will need to save told, told2, eventually)
-  call check( nf90_open(trim(path // 'restart.nc'), NF90_NOWRITE, ncid) )
-  call check( nf90_inq_dimid(ncid, 'nx', dimid) )
-  call check( nf90_inquire_dimension(ncid, dimid, len = twokmax) )
-  call check( nf90_inq_dimid(ncid, 'ny', dimid) )
-  call check( nf90_inquire_dimension(ncid, dimid, len = twolmax) )
-  call check( nf90_inq_varid(ncid, 'thetaB', varid) )
-  call check( nf90_get_var(ncid, varid, thB) )
-  call check( nf90_inq_varid(ncid, 'thetaT', varid) )
-  call check( nf90_get_var(ncid, varid, thT) )
-  call check (nf90_close(ncid) )
+  call nc_check( nf90_open(trim(adjustl(path)) // 'restart.nc', NF90_NOWRITE, ncid) )
+  call nc_check( nf90_inq_dimid(ncid, 'nx', dimid) )
+  call nc_check( nf90_inquire_dimension(ncid, dimid, len = twokmax) )
+  call nc_check( nf90_inq_dimid(ncid, 'ny', dimid) )
+  call nc_check( nf90_inquire_dimension(ncid, dimid, len = twolmax) )
+  call nc_check( nf90_inq_varid(ncid, 'thetaB', varid) )
+  call nc_check( nf90_get_var(ncid, varid, thB) )
+  call nc_check( nf90_inq_varid(ncid, 'thetaT', varid) )
+  call nc_check( nf90_get_var(ncid, varid, thT) )
+  call nc_check (nf90_close(ncid) )
 
   if (twokmax .ne. 2*kmax .and. twolmax .ne. 2*lmax) then  
      print*,'x and y resolution from restart.nc do not match SPECTRAL.f90!!!'
@@ -791,33 +801,34 @@ SUBROUTINE init_restart(thB,thT)
   endif
 
   return
-end SUBROUTINE init_restart
+END SUBROUTINE init_restart
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE init_tracer(trB,trT)
 
-  USE spectral
-  IMPLICIT NONE
-
   ! Initialize tracer fields
 
-  real, intent(out), dimension(2*kmax,2*lmax) :: trB,trT
+  implicit none
+
+  real, dimension(2*kmax,2*lmax), intent(out) :: trB,trT
+
   integer :: twokmax, twolmax
   integer :: ncid, dimid, varid
 
   if (verbose .gt. 0)  print*,'initializing tracer fields...'
   trB = 0.; trT = 0.
 
-  call check( nf90_open(path//trim('tr_init.nc'), NF90_NOWRITE, ncid) )
-  call check( nf90_inq_dimid(ncid, 'nx', dimid) )
-  call check( nf90_inquire_dimension(ncid, dimid, len = twokmax) )
-  call check( nf90_inq_dimid(ncid, 'ny', dimid) )
-  call check( nf90_inquire_dimension(ncid, dimid, len = twolmax) )
-  call check( nf90_inq_varid(ncid, 'tracerB', varid) )
-  call check( nf90_get_var(ncid, varid, trB) )
-  call check( nf90_inq_varid(ncid, 'tracerT', varid) )
-  call check( nf90_get_var(ncid, varid, trT) )
-  call check (nf90_close(ncid) )
+  call nc_check( nf90_open(trim(adjustl(path)) //  'tr_init.nc', NF90_NOWRITE, ncid) )
+  call nc_check( nf90_inq_dimid(ncid, 'nx', dimid) )
+  call nc_check( nf90_inquire_dimension(ncid, dimid, len = twokmax) )
+  call nc_check( nf90_inq_dimid(ncid, 'ny', dimid) )
+  call nc_check( nf90_inquire_dimension(ncid, dimid, len = twolmax) )
+  call nc_check( nf90_inq_varid(ncid, 'tracerB', varid) )
+  call nc_check( nf90_get_var(ncid, varid, trB) )
+  call nc_check( nf90_inq_varid(ncid, 'tracerT', varid) )
+  call nc_check( nf90_get_var(ncid, varid, trT) )
+  call nc_check (nf90_close(ncid) )
 
   if (twokmax .ne. 2*kmax .and. twolmax .ne. 2*lmax) then  
      print*,'x and y resolution from tr_init.nc do not match SPECTRAL.f90!!!'
@@ -827,13 +838,11 @@ SUBROUTINE init_tracer(trB,trT)
   endif
 
   return
-end SUBROUTINE init_tracer
+END SUBROUTINE init_tracer
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE init_jet(thbB,thbT,thbyB,thbyT,ulinB,ulinT,lam)
-
-  USE spectral
-  IMPLICIT NONE
 
   ! Initialize basic state jet.
   ! thbB = periodic basic state theta; bottom boundary (spectral grid).
@@ -843,15 +852,17 @@ SUBROUTINE init_jet(thbB,thbT,thbyB,thbyT,ulinB,ulinT,lam)
   ! ulinB = basic state wind; bottom boundary (grid point).
   ! ulinT = basic state wind; top boundary (grid point).
 
-  complex, intent(out), dimension(2*kmax,2*lmax) :: thbB,thbT
-  real, intent(out), dimension(mmax,nmax) :: thbyB,thbyT,ulinB,ulinT
-  complex, dimension(mmax,nmax) :: thyB,thyT,uB,uT,temp
-  real, intent(out) :: lam
-  real, dimension(2*kmax,2*lmax) :: thbxyB,thbxyT
-  real :: HW_ubar,HW_theta,HW_thetay
-  real :: y,yp,dyy
-  integer :: j,icho
-  complex,dimension(2*kmax,2*lmax) :: dx,dy,dz,dzo,iz,izo,dzi,Id
+  implicit none
+
+  complex, dimension(2*kmax,2*lmax), intent(out) :: thbB,thbT
+  real,    dimension(mmax,nmax),     intent(out) :: thbyB,thbyT,ulinB,ulinT
+  real,                              intent(out) :: lam
+
+  complex, dimension(mmax,nmax)     :: thyB,thyT,uB,uT,temp
+  complex, dimension(2*kmax,2*lmax) :: dx,dy,dz,dzo,iz,izo,dzi,Id
+  real,    dimension(2*kmax,2*lmax) :: thbxyB,thbxyT
+  real                              :: y,yp,dyy
+  integer                           :: j
 
   if (verbose .gt. 0) print*,'initializing basic state...'
 
@@ -865,8 +876,9 @@ SUBROUTINE init_jet(thbB,thbT,thbyB,thbyT,ulinB,ulinT,lam)
      y = real(j-1)*dyy; yp = y - (0.5*(YL - hwp))
      thbxyB(:,j) = HW_theta(y,0.) + lam*yp
      thbxyT(:,j) = HW_theta(y,H) + lam*yp
-     !         print*,'periodic theta grid point:',y,yp,thbxyT(1,j)
+     !print*,'periodic theta grid point:',y,yp,thbxyT(1,j)
   enddo
+
   ! map into spectral space at the same resolution:
   call xy_to_sp(cmplx(thbxyB,0.),thbB,2*kmax,2*lmax,kmax,lmax)
   call xy_to_sp(cmplx(thbxyT,0.),thbT,2*kmax,2*lmax,kmax,lmax)
@@ -878,8 +890,8 @@ SUBROUTINE init_jet(thbB,thbT,thbyB,thbyT,ulinB,ulinT,lam)
      thbyB(:,j) = HW_thetay(y,0.) + lam
      thbyT(:,j) = HW_thetay(y,H) + lam
      ! old U
-     !         ulinB(:,j) = HW_ubar(y,0.)
-     !         ulinT(:,j) = HW_ubar(y,H)
+     !ulinB(:,j) = HW_ubar(y,0.)
+     !ulinT(:,j) = HW_ubar(y,H)
   enddo
 
   ! new U: solve numerically given theta
@@ -894,11 +906,14 @@ SUBROUTINE init_jet(thbB,thbT,thbyB,thbyT,ulinB,ulinT,lam)
   ulinT = ulinT + lam*H
 
   return
-end SUBROUTINE init_jet
+END SUBROUTINE init_jet
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Numerical Recipes random number generator:
 FUNCTION ran1(idum)
+
+! Numerical Recipes random number generator:
+
   INTEGER idum,IA,IM,IQ,IR,NTAB,NDIV
   REAL ran1,AM,EPS,RNMX
   PARAMETER (IA=16807,IM=2147483647,AM=1./IM,IQ=127773,IR=2836, &
@@ -925,33 +940,28 @@ FUNCTION ran1(idum)
   ran1=min(AM*iy,RNMX)
   return
 END FUNCTION ran1
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE dump(thspB,thspT,trspB,trspT,ilam,lam,it,outfile)
 
-  !     Write theta or streamfunction to disk.
-  USE spectral
-  IMPLICIT NONE
+  !     Write theta or streamFUNCTION to disk.
 
-  complex, dimension(2*kmax,2*lmax) :: thspB,thspT,copy,thbB,thbT
-  complex, dimension(2*kmax,2*lmax) :: trspB,trspT
-  real, dimension(2*kmax,2*lmax) :: thxyB,thxyT
-  real, dimension(2*kmax,2*lmax) :: trxyB,trxyT
-  real, intent(in) :: lam
-  real :: y,yp,dy
-  integer :: ilam
-  integer, save :: irec
-  integer :: i,j
-  character(len=16) :: form
-  character(len=8) :: size
+  implicit none
 
-! Pertaining to netCDF files
-  integer :: it
-  character(len=64), intent(in) :: outfile
+  complex, dimension(2*kmax,2*lmax), intent(in) :: thspB,thspT
+  complex, dimension(2*kmax,2*lmax), intent(in) :: trspB,trspT
+  logical,                           intent(in) :: ilam
+  real,                              intent(in) :: lam
+  integer,                           intent(in) :: it
+  character(len=*),                  intent(in) :: outfile
 
-! set up the format form
-  write(size,'(i8)') (2*kmax*2*lmax); size = adjustr(size)
-  form = '('//size//'F10.6'//')'!; print*,'FORMAT',form
+  complex, dimension(2*kmax,2*lmax) :: copy
+  complex, dimension(2*kmax,2*lmax) :: thbB,thbT
+  real,    dimension(2*kmax,2*lmax) :: thxyB,thxyT
+  real,    dimension(2*kmax,2*lmax) :: trxyB,trxyT
+  real                              :: y,dy
+  integer                           :: j
 
   copy = thspB
   call sp_to_xy(copy,thxyB,kmax,lmax,2*kmax,2*lmax)
@@ -963,10 +973,10 @@ SUBROUTINE dump(thspB,thspT,trspB,trspT,ilam,lam,it,outfile)
   call sp_to_xy(copy,trxyT,kmax,lmax,2*kmax,2*lmax)
 
   ! add in linear shear
-  if (ilam .eq. 1) then 
+  if ( ilam ) then 
      dy = YL/real(2*lmax)
      do j=1, 2*lmax
-! fixed 08/10/2005 GJH & RBM
+        ! fixed 08/10/2005 GJH & RBM
         y = real(j-1)*dy; 
         thxyB(:,j) = thxyB(:,j) - lam*y
         thxyT(:,j) = thxyT(:,j) - lam*y
@@ -974,93 +984,98 @@ SUBROUTINE dump(thspB,thspT,trspB,trspT,ilam,lam,it,outfile)
   endif
 
   if (verbose .gt. 0) print*,'Writing to disk...'
-  call cdf_dump(outfile,it,thxyB,thxyT,trxyB,trxyT)
+  call write_diag(outfile,it,thxyB,thxyT,trxyB,trxyT)
   
   ! write the init files if this is a grow run
   if (grow) then 
-     open(31,file=path//'th_init_B.dat') 
+     open(31,file=trim(adjustl(path)) // 'th_init_B.dat') 
      write(31,'(i5)') 2*kmax
      write(31,'(i5)') 2*lmax
      write(31,*) thxyB; close(31)
-     open(31,file=path//'th_init_T.dat') 
+     open(31,file=trim(adjustl(path)) // 'th_init_T.dat') 
      write(31,'(i5)') 2*kmax
      write(31,'(i5)') 2*lmax
      write(31,*) thxyT; close(31)
   endif
 
   return
-end SUBROUTINE dump
+END SUBROUTINE dump
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE advect(u,v,f_x,f_y,fb_y,h_x,h_y,ub,tf,lam,lap)
 
   ! Spectral advection on the (x,y) grid.
-  USE spectral
-  IMPLICIT NONE
 
-  real, intent(in), dimension(mmax,nmax) :: u,v,f_x,f_y,fb_y,ub,lap,h_x,h_y
-  real, intent(in) :: lam
-  real, intent(out), dimension(mmax,nmax) :: tf
-  real :: terr,ekman,dx,x,dy,y,ran1,famp,rw
-  integer :: i,j
+  implicit none
+
+  real, dimension(mmax,nmax), intent(in)  :: u,v,f_x,f_y,fb_y,ub,h_x,h_y,lap
+  real,                       intent(in)  :: lam
+  real, dimension(mmax,nmax), intent(out) :: tf
+
+  real          :: terr,dx,x,dy,y,famp,rw
+  real          :: rphasex,rphasey
+  integer       :: i,j
   integer, save :: iseed
-  real :: rphasex,rphasey
 
   dx = XL/real((mmax)); dy = YL/real((nmax))
 
 ! random wave-one forcing; random walk in phase (30 August 2006)
-!  rw = 32. ! random wavenumber
-  rw = 4. ! random wavenumber
+  !rw = 32. ! random wavenumber
+  rw = 4.   ! random wavenumber
   famp = 0.1*H ! forcing amplitude
-  famp = 0. ! forcing amplitude
+  famp = 0.    ! forcing amplitude
   rphasex = 2.*pi*(ran1(iseed)-0.5)
   rphasey = 2.*pi*(ran1(iseed)-0.5)
 
   do i=1,mmax; do j=1,nmax
-     x = real(i-1)*dx; y = real(j-1)*dy
+    x = real(i-1)*dx; y = real(j-1)*dy
 
-     if (linear) then 
-        tf(i,j) = -((v(i,j) * (fb_y(i,j) - lam)) + &
+    if (linear) then 
+      tf(i,j) = -((v(i,j) * (fb_y(i,j) - lam)) + &
              &                 (ub(i,j) * f_x(i,j)))
-     else
-        tf(i,j) = -((v(i,j) * (f_y(i,j) + fb_y(i,j) - lam)) + &
+    else
+      tf(i,j) = -((v(i,j) * (f_y(i,j) + fb_y(i,j) - lam)) + &
              &                 ((u(i,j) + ub(i,j)) * f_x(i,j)))
-     endif
+    endif
 
-     tf(i,j) = tf(i,j) - (ekman(x,y)*lap(i,j)) ! Ekman layer
+    tf(i,j) = tf(i,j) - (ekman(x,y)*lap(i,j)) ! Ekman layer
 
-! terrain:
-     if (iterr) then
-        terr = -( (v(i,j) * h_y(i,j)) + ((u(i,j) + ub(i,j)) * h_x(i,j)) )
-        tf(i,j) = tf(i,j) + terr 
-     endif
+    ! terrain:
+    if (iterr) then
+       terr = -( (v(i,j) * h_y(i,j)) + ((u(i,j) + ub(i,j)) * h_x(i,j)) )
+       tf(i,j) = tf(i,j) + terr 
+    endif
 
-! random wave-one forcing; random walk in phase (30 August 2006)
-     tf(i,j) = tf(i,j) - famp*sin((rw*x*2*pi/XL)-rphasex)*sin((rw*y*2*pi/YL)-rphasey)
+    ! random wave-one forcing; random walk in phase (30 August 2006)
+    tf(i,j) = tf(i,j) - famp*sin((rw*x*2*pi/XL)-rphasex)*sin((rw*y*2*pi/YL)-rphasey)
 
   enddo; enddo
 
-
   return
-end SUBROUTINE advect
+END SUBROUTINE advect
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE thadvB(dat,tend,dco,first)
 
-  ! Time-advance subroutine.
-  USE spectral
-  IMPLICIT NONE
+  ! Time-advance SUBROUTINE.
 
-  complex, intent(inout), dimension(2*kmax,2*lmax) :: dat
-  complex, intent(in),    dimension(mmax,nmax)     :: tend
-  real,    intent(in) :: dco
-  logical, intent(in) :: first
-  real :: ak,bl
+  implicit none
+
+  complex, dimension(2*kmax,2*lmax), intent(inout) :: dat
+  complex, dimension(mmax,nmax),     intent(in)    :: tend
+  real,                              intent(in)    :: dco
+  logical,                           intent(in)    :: first
+
+  real    :: ak,bl
   integer :: k,l,kk,ll
-  complex :: ttsp,temp
+  complex :: ttsp
+
   complex, dimension(2*kmax,2*lmax), save :: told,told2
-  real, save :: dts
-	logical, parameter :: flag = .TRUE.
+  real,                              save :: dts
+
+  logical, parameter :: flag = .TRUE.
 
   if (first) then
      !  adams-bash
@@ -1104,25 +1119,29 @@ SUBROUTINE thadvB(dat,tend,dco,first)
   enddo; enddo
 
   return
-end SUBROUTINE thadvB
+END SUBROUTINE thadvB
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE thadvT(dat,tend,dco,first)
 
-  ! Time-advance subroutine.
-  USE spectral
-  IMPLICIT NONE
+  ! Time-advance SUBROUTINE.
 
-  complex, intent(inout), dimension(2*kmax,2*lmax) :: dat
-  complex, intent(in),    dimension(mmax,nmax)     :: tend
-  real,    intent(in) :: dco
-  logical, intent(in) :: first
-  real :: ak,bl
+  implicit none
+
+  complex, dimension(2*kmax,2*lmax), intent(inout) :: dat
+  complex, dimension(mmax,nmax),     intent(in)    :: tend
+  real,                              intent(in)    :: dco
+  logical,                           intent(in)    :: first
+
+  real    :: ak,bl
   integer :: k,l,kk,ll
-  complex :: ttsp,temp
+  complex :: ttsp
+
   complex, dimension(2*kmax,2*lmax), save :: told,told2
-  real, save :: dts
-	logical, parameter :: flag = .TRUE.
+  real,                              save :: dts
+
+  logical, parameter :: flag = .TRUE.
 
   if (first) then
      !  adams-bash
@@ -1166,25 +1185,29 @@ SUBROUTINE thadvT(dat,tend,dco,first)
   enddo; enddo
 
   return
-end SUBROUTINE thadvT
+END SUBROUTINE thadvT
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE tradvB(dat,tend,dco,first)
 
-  ! Time-advance subroutine.
-  USE spectral
-  IMPLICIT NONE
+  ! Time-advance SUBROUTINE.
 
-  complex, intent(inout), dimension(2*kmax,2*lmax) :: dat
-  complex, intent(in),    dimension(mmax,nmax)     :: tend
-  real,    intent(in) :: dco
-  logical, intent(in) :: first
-  real :: ak,bl
+  implicit none
+
+  complex, dimension(2*kmax,2*lmax), intent(inout) :: dat
+  complex, dimension(mmax,nmax),     intent(in)    :: tend
+  real,                              intent(in)    :: dco
+  logical,                           intent(in)    :: first
+
+  real    :: ak,bl
   integer :: k,l,kk,ll
-  complex :: ttsp,temp
+  complex :: ttsp
+
   complex, dimension(2*kmax,2*lmax), save :: told,told2
-  real, save :: dts
-	logical, parameter :: flag = .FALSE.
+  real,                              save :: dts
+
+  logical, parameter :: flag = .FALSE.
 
   if (first) then
      !  adams-bash
@@ -1228,25 +1251,29 @@ SUBROUTINE tradvB(dat,tend,dco,first)
   enddo; enddo
 
   return
-end SUBROUTINE tradvB
+END SUBROUTINE tradvB
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE tradvT(dat,tend,dco,first)
 
-  ! Time-advance subroutine.
-  USE spectral
-  IMPLICIT NONE
+  ! Time-advance SUBROUTINE.
 
-  complex, intent(inout), dimension(2*kmax,2*lmax) :: dat
-  complex, intent(in),    dimension(mmax,nmax)     :: tend
-  real,    intent(in) :: dco
-  logical, intent(in) :: first
-  real :: ak,bl
+  implicit none
+
+  complex, dimension(2*kmax,2*lmax), intent(inout) :: dat
+  complex, dimension(mmax,nmax) ,    intent(in)    :: tend
+  real,                              intent(in)    :: dco
+  logical,                           intent(in)    :: first
+
+  real    :: ak,bl
   integer :: k,l,kk,ll
-  complex :: ttsp,temp
+  complex :: ttsp
+
   complex, dimension(2*kmax,2*lmax), save :: told,told2
-  real, save :: dts
-	logical, parameter :: flag = .FALSE.
+  real,                              save :: dts
+
+  logical, parameter :: flag = .FALSE.
 
   if (first) then
      !  adams-bash
@@ -1290,20 +1317,23 @@ SUBROUTINE tradvT(dat,tend,dco,first)
   enddo; enddo
 
   return
-end SUBROUTINE tradvT
+END SUBROUTINE tradvT
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine tstep_ab(tend,dat,told,told2,ak,bl,dco,dts,flag)
+SUBROUTINE tstep_ab(tend,dat,told,told2,ak,bl,dco,dts,flag)
+
   ! 3rd-order Adams-Bashforth time step (Durran 1991).
-  USE spectral
-  IMPLICIT NONE
+
+  implicit none
 
   complex, intent(inout) :: dat, told, told2
-  complex, intent(in) :: tend
-  real, intent(in) :: ak,bl,dco,dts
-	logical, intent(in) :: flag
+  complex, intent(in)    :: tend
+  real,    intent(in)    :: ak,bl,dco,dts
+  logical, intent(in)    :: flag
+
   complex :: new, temp
-  real :: tfac,relax
+  real    :: tfac,relax
 
   ! changed 02/07/03 to include relaxation to jet
   relax = 0.
@@ -1321,8 +1351,8 @@ subroutine tstep_ab(tend,dat,told,told2,ak,bl,dco,dts,flag)
   tfac = dts*((dco*(((ak**2)+(bl**2))**(n/2))) + relax)
 
   ! new t-step:
-  !      tfac = dco*dts*((ak**n)+(bl**n))
-  !      tfac = dco*dts*((ak**2)+(bl**2))**(n/2)
+  !tfac = dco*dts*((ak**n)+(bl**n))
+  !tfac = dco*dts*((ak**2)+(bl**2))**(n/2)
 
   told = told*exp(-1.*tfac)
   told2 = told2*exp(-tfac)
@@ -1330,45 +1360,44 @@ subroutine tstep_ab(tend,dat,told,told2,ak,bl,dco,dts,flag)
   temp = (23.*tend) - (16.*told) + (5.*told2)
   new = dat + ( (dts/12.)*(temp) )
 
-  !      dat=new*exp(-1.*tfac); told2=told*exp(tfac); told=tend
+  !dat=new*exp(-1.*tfac); told2=told*exp(tfac); told=tend
   dat=new*exp(-1.*tfac); told2=told; told=tend
 
   return
-end subroutine tstep_ab
+END SUBROUTINE tstep_ab
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine ft_2d(f,ni,nj,isign)
+SUBROUTINE ft_2d(f,ni,nj,isign)
 
-  ! FFT-calling subroutine. Plug in appropriate calls.
+  ! FFT-calling SUBROUTINE. Plug in appropriate calls.
 
-  IMPLICIT NONE
+  implicit none
 
-  integer, intent(in) :: ni, nj, isign
+  integer,                   intent(in)    :: ni, nj, isign
+  complex, dimension(ni,nj), intent(inout) :: f
+
   real, dimension(ni,nj) :: re, im
-  complex, dimension(ni,nj) :: f
-  !f2py intent(in,out) :: f
-  character(len=1) :: csign
-  !  integer*4 :: stat
-  integer :: stat
 
   re = real(f); im = aimag(f)
-  call fft(re,im,ni*nj,ni,ni,isign)
+  call fft(re,im,ni*nj,ni,ni,   isign)
   call fft(re,im,ni*nj,nj,nj*ni,isign)
   f = cmplx(re,im)
 
   return
-end subroutine ft_2d
+END SUBROUTINE ft_2d
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine d_setup(dx,dy,dz,dzo,iz,izo,Id)
+SUBROUTINE d_setup(dx,dy,dz,dzo,iz,izo,Id)
 
   ! Set up matrices for derivatives and integrals.
 
-  USE spectral
-  IMPLICIT NONE
+  implicit none
 
-  complex, dimension(2*kmax,2*lmax) :: dx,dy,dz,dzo,iz,izo,Id
-  real :: m
+  complex, dimension(2*kmax,2*lmax), intent(out) :: dx,dy,dz,dzo,iz,izo,Id
+
+  real    :: m
   integer :: k,l
 
   ! dx
@@ -1398,11 +1427,11 @@ subroutine d_setup(dx,dy,dz,dzo,iz,izo,Id)
      else
         ! must force real, since small complex residual may remain:
         m = real(((-(dx(k,1)**2)) - (dy(1,l)**2))**0.5)
-        dz(k,l) = m / tanh(m*H) ! h->\infty: tanh->1, dz->m
+        dz(k,l) = m / tanh(m*H)       ! h->\infty: tanh->1, dz->m
         iz(k,l) = 1./ (m * tanh(m*H)) ! h->\infty: iz-> 1/m
         ! operators for opposing boundary
         if (m*H .lt. 50 .and. model .ne. 0) then
-           dzo(k,l) = m / sinh(m*H) ! h->\infty: dzo->0
+           dzo(k,l) = m / sinh(m*H)       ! h->\infty: dzo->0
            izo(k,l) = 1./ (m * sinh(m*H)) ! h->\infty: izo->0
         elseif (model .eq. 0) then 
            print *,'SELECTED 2D EULER DYNAMICS....'
@@ -1419,184 +1448,199 @@ subroutine d_setup(dx,dy,dz,dzo,iz,izo,Id)
   Id = 1.0
 
   return
-end subroutine d_setup
+END SUBROUTINE d_setup
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine d_s2b(in,out,dflag,dn)
+SUBROUTINE d_s2b(temp_in,temp_out,dflag,dn)
 
   ! small array to big array.
   ! dflag =  n: n derivatives. dflag = -n: n integrations.
 
-  USE spectral
-  IMPLICIT NONE
+  implicit none
 
-  complex, intent(in), dimension(2*kmax,2*lmax) :: in,dn
-  integer, intent(in) :: dflag
-  complex, intent(out), dimension(mmax,nmax) :: out
+  complex, dimension(2*kmax,2*lmax) , intent(in)  :: temp_in,dn
+  integer,                            intent(in)  :: dflag
+  complex, dimension(mmax,nmax),      intent(out) :: temp_out
+
   integer :: k,l,kk,ll
 
   do k = 1,kmax; do l = 1,lmax
      ! waves: 0 <= k <= +/-kmax; 0 <= l <= +/-lmax:
 
-     out(k,l) = (dn(k,l)**dflag)*in(k,l)
+     temp_out(k,l) = (dn(k,l)**dflag)*temp_in(k,l)
 
      kk = kmax + k; ll = lmax + l
 
      ! +/-kmax <= k <= -1; 0 <= l <= +/-lmax:
      if (k .gt. 1) then
-        out(k2+k,l) = (dn(kk,l)**dflag)*in(kk,l)
+        temp_out(k2+k,l) = (dn(kk,l)**dflag)*temp_in(kk,l)
      endif
 
      ! 0 <= k <= +/-kmax; +/-lmax <= l <= -1:
      if (l .gt. 1) then
-        out(k,l2+l) = (dn(k,ll)**dflag)*in(k,ll)
+        temp_out(k,l2+l) = (dn(k,ll)**dflag)*temp_in(k,ll)
      endif
 
      ! +/-kmax <= k <= -1; +/-lmax <= l <= -1:
      if ((k .gt. 1) .and. (l .gt. 1)) then
-        out(k2+k,l2+l) = (dn(kk,ll)**dflag)*in(kk,ll)
+        temp_out(k2+k,l2+l) = (dn(kk,ll)**dflag)*temp_in(kk,ll)
      endif
   enddo; enddo
 
   return
-end subroutine d_s2b
+END SUBROUTINE d_s2b
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine d_s2s(in,out,dflag,dn)
+SUBROUTINE d_s2s(temp_in,temp_out,dflag,dn)
 
   ! small array to small array.
   ! dflag =  n: n derivatives. dflag = -n: n integrations.
 
-  USE spectral
-  IMPLICIT NONE
+  implicit none
 
-  complex, intent(in), dimension(2*kmax,2*lmax) :: in,dn
-  integer, intent(in) :: dflag
-  complex, intent(out), dimension(2*kmax,2*lmax) :: out
+  complex, dimension(2*kmax,2*lmax), intent(in)  :: temp_in,dn
+  integer,                           intent(in)  :: dflag
+  complex, dimension(2*kmax,2*lmax), intent(out) :: temp_out
+
   integer :: k,l
 
-  out = 0.
+  temp_out = 0.
 
   do k = 1,2*kmax; do l = 1,2*lmax
-     if (dn(k,l) .ne. 0) out(k,l) = (dn(k,l)**dflag)*in(k,l)
+     if (dn(k,l) .ne. 0) temp_out(k,l) = (dn(k,l)**dflag)*temp_in(k,l)
   enddo; enddo
 
   return
-end subroutine d_s2s
+END SUBROUTINE d_s2s
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine d_b2b(in,out,dflag,dn)
+SUBROUTINE d_b2b(temp_in,temp_out,dflag,dn)
 
   ! big array to big array.
   ! dflag =  n: n derivatives. dflag = -n: n integrations.
 
-  USE spectral
-  IMPLICIT NONE
+  implicit none
 
-  complex, intent(in), dimension(mmax,nmax) :: in
-  complex, intent(in), dimension(2*kmax,2*lmax) :: dn
-  integer, intent(in) :: dflag
-  complex, intent(out), dimension(mmax,nmax) :: out
+  complex, dimension(mmax,nmax),     intent(in)  :: temp_in
+  complex, dimension(2*kmax,2*lmax), intent(in)  :: dn
+  integer,                           intent(in)  :: dflag
+  complex, dimension(mmax,nmax),     intent(out) :: temp_out
+
   integer :: k,l,kk,ll
 
-  out = 0.
+  temp_out = 0.
 
   do k = 1,kmax; do l = 1,lmax
      ! waves: 0 <= k <= +/-kmax; 0 <= l <= +/-lmax:
 
-     if (dn(k,l) .ne. 0) out(k,l) = (dn(k,l)**dflag)*in(k,l)
+     if (dn(k,l) .ne. 0) temp_out(k,l) = (dn(k,l)**dflag)*temp_in(k,l)
 
      kk = kmax + k; ll = lmax + l
 
      ! +/-kmax <= k <= -1; 0 <= l <= +/-lmax:
      if (k .gt. 1) then
         if (dn(kk,l) .ne. 0)  &
-             &           out(k2+k,l) = (dn(kk,l)**dflag)*in(k2+k,l)
+             &           temp_out(k2+k,l) = (dn(kk,l)**dflag)*temp_in(k2+k,l)
      endif
 
      ! 0 <= k <= +/-kmax; +/-lmax <= l <= -1:
      if (l .gt. 1) then
         if (dn(k,ll) .ne. 0) &
-             &           out(k,l2+l) = (dn(k,ll)**dflag)*in(k,l2+l)
+             &           temp_out(k,l2+l) = (dn(k,ll)**dflag)*temp_in(k,l2+l)
      endif
 
      ! +/-kmax <= k <= -1; +/-lmax <= l <= -1:
      if ((k .gt. 1) .and. (l .gt. 1)) then
         if (dn(kk,ll) .ne. 0)  &
-             &           out(k2+k,l2+l) = (dn(kk,ll)**dflag)*in(k2+k,l2+l)
+             &           temp_out(k2+k,l2+l) = (dn(kk,ll)**dflag)*temp_in(k2+k,l2+l)
      endif
   enddo; enddo
 
   return
-end subroutine d_b2b
+END SUBROUTINE d_b2b
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine d_b2s(in,out,dflag,dn)
+SUBROUTINE d_b2s(temp_in,temp_out,dflag,dn)
 
   ! big array to small array.
   ! dflag =  n: n derivatives. dflag = -n: n integrations.
 
-  USE spectral
-  IMPLICIT NONE
+  implicit none
 
-  complex, intent(in), dimension(mmax,nmax) :: in
-  complex, intent(in), dimension(2*kmax,2*lmax) :: dn
-  integer, intent(in) :: dflag
-  complex, intent(out), dimension(2*kmax,2*lmax) :: out
+  complex, dimension(mmax,nmax),     intent(in)  :: temp_in
+  complex, dimension(2*kmax,2*lmax), intent(in)  :: dn
+  integer,                           intent(in)  :: dflag
+  complex, dimension(2*kmax,2*lmax), intent(out) :: temp_out
   integer :: k,l,kk,ll
 
   do k = 1,kmax; do l = 1,lmax
      ! waves: 0 <= k <= +/-kmax; 0 <= l <= +/-lmax:
 
-     out(k,l) = (dn(k,l)**dflag)*in(k,l)
+     temp_out(k,l) = (dn(k,l)**dflag)*temp_in(k,l)
 
      kk = kmax + k; ll = lmax + l
 
      ! +/-kmax <= k <= -1; 0 <= l <= +/-lmax:
      if (k .ge. 1) then
-        out(kk,l) = (dn(kk,l)**dflag)*in(k2+k,l)
+        temp_out(kk,l) = (dn(kk,l)**dflag)*temp_in(k2+k,l)
      endif
 
      ! 0 <= k <= +/-kmax; +/-lmax <= l <= -1:
      if (l .ge. 1) then
-        out(k,ll) = (dn(k,ll)**dflag)*in(k,l2+l)
+        temp_out(k,ll) = (dn(k,ll)**dflag)*temp_in(k,l2+l)
      endif
 
      ! +/-kmax <= k <= -1; +/-lmax <= l <= -1:
      if ((k .ge. 1) .and. (l .ge. 1)) then
-        out(kk,ll) = (dn(kk,ll)**dflag)*in(k2+k,l2+l)
+        temp_out(kk,ll) = (dn(kk,ll)**dflag)*temp_in(k2+k,l2+l)
      endif
   enddo; enddo
 
   return
-end subroutine d_b2s
-
+END SUBROUTINE d_b2s
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! BEGIN: Hoskins-West base state function calls
-REAL FUNCTION HW_ubar(y,z)
-  USE spectral
-  IMPLICIT NONE
-  real y,yp,z
+
+! Hoskins-West base state FUNCTION calls
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+FUNCTION HW_ubar(y,z)
+
+  implicit none
+
+  real, intent(in)  :: y,z
+
+  real :: HW_ubar
+  real :: yp
 
   yp = y - (0.5*(YL - hwp))
-  if (yp .lt. 0. .and. amu .ne. 0) yp = 0
+  if (yp .lt. 0.  .and. amu .ne. 0) yp = 0.
   if (yp .gt. hwp .and. amu .ne. 0) yp = hwp
-  HW_UBAR = shear*z - &
+  HW_ubar = shear*z - &
        &     (amu/2.)*(z + ((sinh(ryl*z)/sinh(ryl))*cos(yp*ryl)))
 
   return
-end FUNCTION HW_ubar
+END FUNCTION HW_ubar
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-REAL FUNCTION HW_theta(y,z)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+FUNCTION HW_theta(y,z)
+
   ! 9/2006: added amp and correction factor for HW 'hiccup'
   ! NOW INCOMPATIBLE WITH HW_ubar!!! MUST solve for U numerically!!!
-  USE spectral
-  IMPLICIT NONE
-  real y,yp,z
-  real amp,hiccup
 
-  amp = 1.00;    ! control jet strength (GJH's value 1.50)
-  hiccup = 1.00; !                      (GJH's value 0.75)
+  implicit none
+
+  real, intent(in)  :: y,z
+
+  real :: HW_theta
+  real :: yp
+
+  real, parameter :: amp    = 1.0 !control jet strength (GJH's value 1.50)
+  real, parameter :: hiccup = 1.0 !                     (GJH's value 0.75)
+
   yp = y - (0.5*(YL - hwp))
   if (yp .lt. 0. .and. amu .ne. 0) yp = 0
   if (yp .gt. hwp .and. amu .ne. 0) yp = hwp
@@ -1605,45 +1649,50 @@ REAL FUNCTION HW_theta(y,z)
   HW_theta = amp*HW_theta
 
   return
-end FUNCTION HW_theta
+END FUNCTION HW_theta
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-real function HW_THETAY(y,z)
-  USE spectral
-  IMPLICIT NONE
-  real y,yp,z
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+FUNCTION HW_thetay(y,z)
+
+  implicit none
+
+  real, intent(in)  :: y,z
+
+  real :: HW_thetay
+  real :: yp
 
   yp = y - (0.5*(YL - hwp))
   ! fixed this block 02/20/03
 
   if (amu .eq. 0) then
-     HW_THETAY = -shear
+     HW_thetay = -shear
   else
      if (yp .lt. 0 .or. yp .gt. hwp) then 
-        HW_THETAY = 0.
+        HW_thetay = 0.
      else
-        HW_THETAY = -shear + (amu/2.) + &
+        HW_thetay = -shear + (amu/2.) + &
           &        ((amu*ryl/2.)*(cosh(ryl*z)*cos(yp*ryl))/sinh(ryl))
      endif
   endif
   return
-end function HW_THETAY
-! END: Hoskins-West base state function calls
-
+END FUNCTION HW_thetay
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! END: Hoskins-West base state FUNCTION calls
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! hacked from qg code to check mode growth rates
 SUBROUTINE norm(thB,thT,itime)
-  USE spectral
 
-  IMPLICIT NONE
+  ! hacked from qg code to check mode growth rates
 
-  complex, intent(in), dimension(2*kmax,2*lmax) :: thB,thT
-  integer, intent(in) :: itime
-  real :: V,ak,bl,Vgr,ttau,cmax
+  implicit none
+
+  complex, dimension(2*kmax,2*lmax), intent(in) :: thB,thT
+  integer,                           intent(in) :: itime
+
+  real :: V,Vgr,ttau
+
   real, save :: V_old,V_0
-  integer :: i,j,k,l,m,kk
-  logical, parameter :: mesg = .TRUE.
-  !      logical, parameter :: mesg = .FALSE.
 
   ! enstrophy norm (for normal modes, any norm will do)
   V = (sum(abs(thB)**2) + sum(abs(thT)**2))
@@ -1655,95 +1704,101 @@ SUBROUTINE norm(thB,thT,itime)
   endif
 
   if (itime .gt. 2) then
-     !         Vgr = ((V - V_old)/(dt*0.5*(V+V_old)))
+     !Vgr = ((V - V_old)/(dt*0.5*(V+V_old)))
      Vgr = (log(V) - log(V_old))/dt
   endif
 
-  if (mesg) print*,'V inst growth rates:',itime*dt,Vgr
-  !      if (itime .gt. 5) then 
-  !         if (mesg) print*,'V mean growth rates:',(alog(V/V_0))/ttau
-  !      endif
+  if (verbose .gt. 0) then
+    print*,'V inst growth rates:',itime*dt,Vgr
+    !if (itime .gt. 5) print*,'V mean growth rates:',(alog(V/V_0))/ttau
+  endif
 
   V_old = V
 
   return
-end SUBROUTINE norm
+END SUBROUTINE norm
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-REAL FUNCTION ekman(x,y)
-  USE spectral
+FUNCTION ekman(x,y)
 
-  real x,y
+  ! Calculate Ekman pumping
+
+  implicit none
+
+  real             :: ekman
+  real, intent(in) :: x,y
 
   if (x .ge. 2.*XL/3.) then
      ekman = gamma
   else
      ekman = 0.
      ekman = gamma
-     !         ekman = gamma/4.
+     !ekman = gamma/4.
   endif
 
   ekman = gamma
-  !      if (abs(y-(YL/2)) .ge. 3) ekman = 0.5
+  !if (abs(y-(YL/2)) .ge. 3) ekman = 0.5
 
   return
-end FUNCTION ekman
+END FUNCTION ekman
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine cdf_dump(output_file,it,thB,thT,trB,trT)
+SUBROUTINE write_diag(output_file,it,thB,thT,trB,trT)
 
-  use spectral
+  ! write to disk
   
   implicit none
   
-  character(len=64), intent(in) :: output_file
-  integer, intent(in) :: it
-  real, dimension(2*kmax,2*lmax), intent(in), optional :: thB, thT, trB, trT
+  character(len=*),               intent(in) :: output_file
+  integer,                        intent(in) :: it
+  real, dimension(2*kmax,2*lmax), intent(in) :: thB, thT, trB, trT
 
   integer :: ncid, vardim(3), varid
   integer :: k, count(3), start(3), ierr
-  real :: time
-  
+  real    :: time
+ 
   if ( it .eq. 0 ) then
      
     !           Create a new NetCDF file
-    call check( nf90_create(output_file, NF90_CLOBBER .or. NF90_64BIT_OFFSET, ncid) )
+    call nc_check( nf90_create(output_file, NF90_CLOBBER .or. NF90_64BIT_OFFSET, ncid) )
      
     !           Define dimensions
-    call check( nf90_def_dim(ncid, "nx",   2*kmax,         vardim(1)) )
-    call check( nf90_def_dim(ncid, "ny",   2*lmax,         vardim(2)) )
-    call check( nf90_def_dim(ncid, "time", NF90_UNLIMITED, vardim(3)) )
+    call nc_check( nf90_def_dim(ncid, "nx",   2*kmax,         vardim(1)) )
+    call nc_check( nf90_def_dim(ncid, "ny",   2*lmax,         vardim(2)) )
+    call nc_check( nf90_def_dim(ncid, "time", NF90_UNLIMITED, vardim(3)) )
      
     !           Define variables
-    call check( nf90_def_var(ncid, "time",   NF90_FLOAT, vardim(3), varid) )
-    call check( nf90_def_var(ncid, "thetaB", NF90_FLOAT, vardim,    varid) )
-    call check( nf90_put_att(ncid, varid, "description", "bottom potential temperature") )
-    call check( nf90_def_var(ncid, "thetaT", NF90_FLOAT, vardim,    varid) )
-    call check( nf90_put_att(ncid, varid, "description", "toppom potential temperature") )
+    call nc_check( nf90_def_var(ncid, "time",   NF90_FLOAT, vardim(3), varid) )
+    call nc_check( nf90_def_var(ncid, "thetaB", NF90_FLOAT, vardim,    varid) )
+    call nc_check( nf90_put_att(ncid, varid, "description", "bottom potential temperature") )
+    call nc_check( nf90_def_var(ncid, "thetaT", NF90_FLOAT, vardim,    varid) )
+    call nc_check( nf90_put_att(ncid, varid, "description", "toppom potential temperature") )
     if (itracer) then
-      call check( nf90_def_var(ncid, "tracerB", NF90_FLOAT, vardim,    varid) )
-      call check( nf90_put_att(ncid, varid, "description", "bottom tracer") )
-      call check( nf90_def_var(ncid, "tracerT", NF90_FLOAT, vardim,    varid) )
-      call check( nf90_put_att(ncid, varid, "description", "toppom tracer") )
+      call nc_check( nf90_def_var(ncid, "tracerB", NF90_FLOAT, vardim,    varid) )
+      call nc_check( nf90_put_att(ncid, varid, "description", "bottom tracer") )
+      call nc_check( nf90_def_var(ncid, "tracerT", NF90_FLOAT, vardim,    varid) )
+      call nc_check( nf90_put_att(ncid, varid, "description", "toppom tracer") )
     endif
      
-    call check( nf90_put_att(ncid, NF90_GLOBAL, "model", model) )
-    call check( nf90_put_att(ncid, NF90_GLOBAL, "ntims", ntims) )
-    call check( nf90_put_att(ncid, NF90_GLOBAL, "dt", dt)       )
-    call check( nf90_put_att(ncid, NF90_GLOBAL, "iplot", iplot) )
-    call check( nf90_put_att(ncid, NF90_GLOBAL, "XL", XL)       )
-    call check( nf90_put_att(ncid, NF90_GLOBAL, "YL", YL)       )
-    call check( nf90_put_att(ncid, NF90_GLOBAL, "H", H)         )
-    call check( nf90_put_att(ncid, NF90_GLOBAL, "Ross", Ross)   )
-    call check( nf90_put_att(ncid, NF90_GLOBAL, "gamma", gamma) )
-    call check( nf90_put_att(ncid, NF90_GLOBAL, "n", n)         )
-    call check( nf90_put_att(ncid, NF90_GLOBAL, "tau", tau)     )
-    call check( nf90_put_att(ncid, NF90_GLOBAL, "trl", trl)     )
-    call check( nf90_put_att(ncid, NF90_GLOBAL, "amu", amu)     )
-    call check( nf90_put_att(ncid, NF90_GLOBAL, "shear", shear) )
+    call nc_check( nf90_put_att(ncid, NF90_GLOBAL, "model", model) )
+    call nc_check( nf90_put_att(ncid, NF90_GLOBAL, "ntims", ntims) )
+    call nc_check( nf90_put_att(ncid, NF90_GLOBAL, "dt", dt)       )
+    call nc_check( nf90_put_att(ncid, NF90_GLOBAL, "iplot", iplot) )
+    call nc_check( nf90_put_att(ncid, NF90_GLOBAL, "XL", XL)       )
+    call nc_check( nf90_put_att(ncid, NF90_GLOBAL, "YL", YL)       )
+    call nc_check( nf90_put_att(ncid, NF90_GLOBAL, "H", H)         )
+    call nc_check( nf90_put_att(ncid, NF90_GLOBAL, "Ross", Ross)   )
+    call nc_check( nf90_put_att(ncid, NF90_GLOBAL, "gamma", gamma) )
+    call nc_check( nf90_put_att(ncid, NF90_GLOBAL, "n", n)         )
+    call nc_check( nf90_put_att(ncid, NF90_GLOBAL, "tau", tau)     )
+    call nc_check( nf90_put_att(ncid, NF90_GLOBAL, "trl", trl)     )
+    call nc_check( nf90_put_att(ncid, NF90_GLOBAL, "amu", amu)     )
+    call nc_check( nf90_put_att(ncid, NF90_GLOBAL, "shear", shear) )
 
-    call check( nf90_enddef(ncid) )
-    call check( nf90_close(ncid)  )
+    call nc_check( nf90_enddef(ncid) )
+    call nc_check( nf90_close(ncid)  )
 
   else 
      
@@ -1755,48 +1810,51 @@ subroutine cdf_dump(output_file,it,thB,thT,trB,trT)
     count(3) = 1;       start(3) = k
      
     !           Open the netCDF file, write variables and close
-    call check( nf90_open(output_file, NF90_WRITE, ncid) )
-    call check( nf90_inq_varid(ncid, "time",   varid) )
-    call check( nf90_put_var(ncid, varid, time, (/k/))       )
-    call check( nf90_inq_varid(ncid, "thetaB", varid) )
-    call check( nf90_put_var(ncid, varid, thB, start, count) )
-    call check( nf90_inq_varid(ncid, "thetaT", varid) )
-    call check( nf90_put_var(ncid, varid, thT, start, count) )
+    call nc_check( nf90_open(output_file, NF90_WRITE, ncid) )
+    call nc_check( nf90_inq_varid(ncid, "time",   varid) )
+    call nc_check( nf90_put_var(ncid, varid, time, (/k/))       )
+    call nc_check( nf90_inq_varid(ncid, "thetaB", varid) )
+    call nc_check( nf90_put_var(ncid, varid, thB, start, count) )
+    call nc_check( nf90_inq_varid(ncid, "thetaT", varid) )
+    call nc_check( nf90_put_var(ncid, varid, thT, start, count) )
     if (itracer) then
-      call check( nf90_inq_varid(ncid, "tracerB", varid) )
-      call check( nf90_put_var(ncid, varid, trB, start, count) )
-      call check( nf90_inq_varid(ncid, "tracerT", varid) )
-      call check( nf90_put_var(ncid, varid, trT, start, count) )
+      call nc_check( nf90_inq_varid(ncid, "tracerB", varid) )
+      call nc_check( nf90_put_var(ncid, varid, trB, start, count) )
+      call nc_check( nf90_inq_varid(ncid, "tracerT", varid) )
+      call nc_check( nf90_put_var(ncid, varid, trT, start, count) )
     endif
-    call check( nf90_close(ncid) )
+    call nc_check( nf90_close(ncid) )
      
   endif
   
   return
-
-end subroutine cdf_dump
+END SUBROUTINE write_diag
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Terrain and barotropic wind on the _advection_ grid:
-SUBROUTINE terrain(hamp,hx,hy,hu,hv)
+SUBROUTINE terrain(hx,hy,hu,hv)
 
+! Terrain and barotropic wind on the _advection_ grid:
 ! feb 2005: added tropo winds from z = 0 for Hsqg
 
-  USE spectral
-  IMPLICIT NONE
+  implicit none
   
-  complex, dimension(mmax,nmax) :: hxsp,hysp
-  real, dimension(mmax,nmax), intent(out) :: hx,hy,hu,hv
-  complex, dimension(mmax,nmax) :: hh,hxs,hys
-  real, dimension(2*kmax,2*lmax) :: hspR
+  real, intent(out), dimension(mmax,nmax) :: hx,hy,hu,hv
+
+  complex, dimension(mmax,nmax)     :: hxsp,hysp
+  complex, dimension(mmax,nmax)     :: hh,hxs,hys
+
   complex, dimension(2*kmax,2*lmax) :: hspC
-  real :: ubaro(nmax),hamp,x,y,ddx,ddy,xcen,ycen,amdx,amdy,asx,asy
-  real :: asig,rr,c1,c2,ak,bl,lam
-  integer :: i,j,k,l,LL,MM,kk,mmd2,nmd2,mmaxp1,nmaxp1
-  real, dimension(mmax,nmax) :: Rblank
+  real,    dimension(2*kmax,2*lmax) :: hspR
   complex, dimension(2*kmax,2*lmax) :: Cblank
+  real,    dimension(mmax,nmax)     :: Rblank
+
+  real    :: x,y,ddx,ddy,xcen,ycen,amdx,amdy,asx,asy
+  real    :: asig,rr,lam
+  integer :: i,j
+
   ! fool's day 2009 for angie
-  complex,dimension(2*kmax,2*lmax),save:: dx,dy,dz,dzo,iz,izo,dzi,Id
+  complex, dimension(2*kmax,2*lmax), save :: dx,dy,dz,dzo,iz,izo,dzi,Id
 
   ! barotropic wind
   hu = 0.; hv = 0.
@@ -1804,7 +1862,7 @@ SUBROUTINE terrain(hamp,hx,hy,hu,hv)
   ddx = XL/real((mmax)); ddy = YL/real((nmax))
   xcen = mmax*ddx/2; ycen = nmax*ddy/2
   
-  print*,'xcen,ycen:',xcen,ycen
+  if ( verbose .gt. 1 ) print*,'xcen,ycen:',xcen,ycen
   
   do i=1,mmax; do j=1,nmax
      x = (i-1)*ddx; y = (j-1)*ddy
@@ -1816,7 +1874,7 @@ SUBROUTINE terrain(hamp,hx,hy,hu,hv)
      hh(i,j) = hamp*exp(-1.*((rr/asig)**2))
   enddo; enddo
   
-  print*,real(hh(:,nmax/2))
+  if ( verbose .gt. 1 ) print*,real(hh(:,nmax/2))
 
   call ft_2d(hh,mmax,nmax,-1)
   hh = hh / (mmax*nmax)
@@ -1833,7 +1891,7 @@ SUBROUTINE terrain(hamp,hx,hy,hu,hv)
   hx = real(hxs)
   hy = real(hys)
 
-  print*,hx(:,nmax/2)
+  if ( verbose .gt. 1 ) print*,hx(:,nmax/2)
 
   if (model .eq. 4) then ! HsQG needs topo winds on the tropo
      Rblank = 0.; Cblank = 0. ! for HsQG inversion call
@@ -1848,43 +1906,40 @@ SUBROUTINE terrain(hamp,hx,hy,hu,hv)
         rr = (((amdx/asx)**2) + ((amdy/asy)**2))**.5
         hspr(i,j) = hamp*exp(-1.*((rr/asig)**2))
      enddo; enddo
-     print*,'max topo=',maxval(abs(hspR))
+     if ( verbose .gt. 1 ) print*,'max topo=',maxval(abs(hspR))
      call xy_to_sp(cmplx(hspR,0.),hspC,2*kmax,2*lmax,kmax,lmax)
-     print*,'max topo spectral=',maxval(abs(hspC))
+     if ( verbose .gt. 1 ) print*,'max topo spectral=',maxval(abs(hspC))
      call invert(-hspC,Cblank,Rblank,Rblank,Rblank,Rblank,Rblank, & 
           & hv,Rblank,hu,Cblank,Cblank,Rblank,Rblank,Rblank, & 
           & Rblank,.TRUE.,.TRUE.,.TRUE.,lam,Cblank,Cblank,Rblank)
      ! hu and hv have the tropo winds due to topography
-     print*,'max tropo winds due to topography: ',maxval(abs(hu)),maxval(abs(hv))
+     if ( verbose .gt. 1 ) print*,'max tropo winds due to topography: ',maxval(abs(hu)),maxval(abs(hv))
   endif
   
   return
-end SUBROUTINE terrain
+END SUBROUTINE terrain
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!
-!   check - subroutine that checks to make sure the output from a 
-!           netCDF call does not have any errors.
-!           If one exists, it will exit the program.
-!
-!    ierr - integer netCDF error code
-!
+SUBROUTINE nc_check(ierr)
+
+  ! check for netcdf errors
+
+  implicit none
+
+  integer, intent(in) :: ierr
+
+  if (ierr /= nf90_noerr) then
+    print*,'Netcdf error: ', trim( nf90_strerror(ierr) )
+    stop
+  end if
+
+  return
+END SUBROUTINE nc_check
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine check(ierr)
 
-use spectral
-
-implicit none
-
-integer, intent (in) :: ierr
-
-if (ierr /= nf90_noerr) then
-  print*,'Netcdf error: ', trim( nf90_strerror(ierr) )
-  stop
-end if
-
-end subroutine check
-
+END PROGRAM sqg_spectral
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! 2sQG+1 model version log
@@ -1942,7 +1997,7 @@ end subroutine check
 !
 ! v2.6.1
 ! 19 July 2005
-! 1) fixed minor bug in subroutine dump to catch cdf or matlab output.
+! 1) fixed minor bug in SUBROUTINE dump to catch cdf or matlab output.
 !
 ! v2.6.2
 ! 10 August 2005
@@ -1950,7 +2005,7 @@ end subroutine check
 !
 ! v2.7
 ! 6 September 2005
-! 1) convert main source into a subroutine for rolv
+! 1) convert main source into a SUBROUTINE for rolv
 ! 2) pull out diffusion time scale (tau) to SPECTRAL module.
 !
 ! v2.7.1
