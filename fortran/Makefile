@@ -38,6 +38,12 @@ NETCDF  = /ford1/local/EL5/netcdf4
 NCFLAGS = -L${NETCDF}/lib -lnetcdff -lnetcdf -I${NETCDF}/include
 mFFLAGS =
 endif
+
+ifeq (${host}, winterfell)
+NETCDF  = /opt/netcdf
+NCFLAGS = -L${NETCDF}/lib -lnetcdf -I${NETCDF}/include
+mFFLAGS = -shared-intel
+endif
 #------------------------------------------------------------
 
 #------------------------------------------------------------
