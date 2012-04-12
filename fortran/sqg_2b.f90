@@ -16,6 +16,17 @@ PROGRAM sqg_spectral
 
     use spectral
 
+    ! derivative operators
+    type derivative_operators
+        complex, dimension(2*kmax,2*lmax) :: dx,dy,dz,dzo,iz,izo,Id
+    end type derivative_operators
+
+    type(derivative_operators) :: d_oper
+
+    ! initialize derivative operators:
+    call d_setup(d_oper)
+
+    ! run the main code
     call main
 
     stop
@@ -43,6 +54,7 @@ SUBROUTINE main
     real,    dimension(mmax,nmax) :: ulinB,ulinT
     real,    dimension(mmax,nmax) :: thbyB,thbyT
     ! misc
+    complex, dimension(2*kmax,2*lmax) :: thspB1,thspB2,thspT1,thspT2
     complex, dimension(2*kmax,2*lmax) :: Cblank
     real,    dimension(2*kmax,2*lmax) :: Rblanks
     real,    dimension(mmax,nmax)     :: Rblankb
@@ -63,7 +75,7 @@ SUBROUTINE main
     if (verbose .gt. 0) print *,'Running with Rossby number: ', Ross
 
     ! initialize diffusion: 
-    call diff(dco)
+    call diffusion(dco)
 
     ! initialize (read from Matlab file or restart file, option to add pert. to restart file):
     if (restart) then
@@ -206,8 +218,12 @@ SUBROUTINE main
         endif
 
         ! advance one time step with explicit (hyper-)diffusion:
-        if (bot) call thadvB(thspB,tthspB,dco,first)
-        if (top) call thadvT(thspT,tthspT,dco,first)
+        if ( first ) then
+            thspB1 = 0.; thspB2 = 0.
+            thspT1 = 0.; thspT2 = 0.
+        endif
+        if (bot) call thadv(thspB,thspB1,thspB2,tthspB,dco,first)
+        if (top) call thadv(thspT,thspT1,thspT2,tthspT,dco,first)
 
         thspB(kmax,:) = 0.; thspB(lmax,:) = 0.
     
@@ -228,7 +244,7 @@ END SUBROUTINE main
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 SUBROUTINE invert(ithspB,ithspT,thxBr,thxTr,thyBr,thyTr,vBr,vTr,uBr,uTr, &
-           thbB,thbT,thbyB,thbyT,ulinB,ulinT,first,bot,top,lam,sB,sold,sblre)
+                  thbB,thbT,thbyB,thbyT,ulinB,ulinT,first,bot,top,lam,sB,sold,sblre)
 
   ! Invert PV and transform to a larger grid for de-aliasing.
 
@@ -246,41 +262,41 @@ SUBROUTINE invert(ithspB,ithspT,thxBr,thxTr,thyBr,thyTr,vBr,vTr,uBr,uTr, &
   real,    dimension(mmax,nmax),     intent(out) :: uBr,uTr,vBr,vTr
   real,    dimension(mmax,nmax),     intent(out) :: sblre
 
-  complex, dimension(mmax,nmax) :: thxB,thxT,thyB,thyT
-  complex, dimension(mmax,nmax) :: uB,uT,vB,vT
-  complex, dimension(mmax,nmax) :: copy
-
-  complex, dimension(2*kmax,2*lmax) :: thspB,thspT
-  complex, dimension(mmax,nmax)     :: szspB,szspT,szzspB,szzspT
-  complex, dimension(mmax,nmax)     :: u1B,v1B,u1T,v1T
-
   complex, dimension(2*kmax,2*lmax) :: temps
+  complex, dimension(2*kmax,2*lmax) :: dx,dy,dz,dzo,iz,izo,Id
+  complex, dimension(2*kmax,2*lmax) :: thspB,thspT
   complex, dimension(2*kmax,2*lmax) :: u1spB,u1spT,v1spB,v1spT
   complex, dimension(2*kmax,2*lmax) :: tempspB,tempspT,tempxyB,tempxyT
   complex, dimension(2*kmax,2*lmax) :: htempB,htempT
   complex, dimension(mmax,nmax)     :: temp
+  complex, dimension(mmax,nmax)     :: thxB,thxT,thyB,thyT
+  complex, dimension(mmax,nmax)     :: uB,uT,vB,vT
+  complex, dimension(mmax,nmax)     :: copy
+  complex, dimension(mmax,nmax)     :: szspB,szspT,szzspB,szzspT
+  complex, dimension(mmax,nmax)     :: u1B,v1B,u1T,v1T
 
-  real, dimension(mmax,nmax) :: thx,thy
-  real, dimension(mmax,nmax) :: u,v
+  logical :: correct
 
-  complex, dimension(2*kmax,2*lmax), save :: dx,dy,dz,dzo,iz,izo,dzi,Id
-  integer,                           save :: pf,gf,bf
-  logical,                           save :: correct
+  integer, save :: pf,gf,bf
 
-  !integer :: i,j,k,l
+  ! get derivative operators
+  dx = d_oper%dx ; dy  = d_oper%dy
+  dz = d_oper%dz ; dzo = d_oper%dzo
+  iz = d_oper%iz ; izo = d_oper%izo
+  Id = d_oper%Id
+
+  ! flag for next-order corrections
+  correct = .FALSE.
+  if (Ross .gt. 1.e-5) correct = .TRUE.
 
 !!!!!!!!!!!!!!!!! Set-up on first time step !!!!!!!!!!!!!!!!!!!!!!!!!!
   if (first) then 
-     if (verbose .gt. 1) print*,'...calling setup'
-     call d_setup(dx,dy,dz,dzo,iz,izo,Id)    ! derivative operators
      !         print*,maxval(abs(dx))
      !         print*,maxval(abs(dy))
      !         print*,maxval(abs(dz))
      !         print*,maxval(abs(iz))
      !         print*,maxval(abs(dzo))
      !         print*,maxval(abs(izo))
-     correct = .FALSE. ! flag for next-order corrections
-     if (Ross .gt. 1.e-5) correct = .TRUE. 
      ! switches for removing rotation or divergence (sQG only)
      !         pf = 1; gf = 1; bf = 0  ! control: full sqg+1 corrections
      !         pf = 0; gf = 1; bf = 1  ! no rotational correction
@@ -593,7 +609,7 @@ END SUBROUTINE sp_to_xy
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE diff(dco)
+SUBROUTINE diffusion(dco)
 
   ! Compute the diffusion coefficient for del^n diffusion (n even>0).
   ! Tau gives the e-folding time scale for damping modes at the 
@@ -616,7 +632,7 @@ SUBROUTINE diff(dco)
   if (verbose .gt. 1) print*,'diffusion coefficient:',dco
 
   return
-END SUBROUTINE diff
+END SUBROUTINE diffusion
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -725,7 +741,6 @@ SUBROUTINE init_jet(thbB,thbT,thbyB,thbyT,ulinB,ulinT,lam)
   real,                              intent(out) :: lam
 
   complex, dimension(mmax,nmax)     :: thyB,thyT,uB,uT,temp
-  complex, dimension(2*kmax,2*lmax) :: dx,dy,dz,dzo,iz,izo,dzi,Id
   real,    dimension(2*kmax,2*lmax) :: thbxyB,thbxyT
   real                              :: y,yp,dyy
   integer                           :: j
@@ -762,11 +777,10 @@ SUBROUTINE init_jet(thbB,thbT,thbyB,thbyT,ulinB,ulinT,lam)
 
   ! new U: solve numerically given theta
   uB = 0.; uT = 0.
-  call d_setup(dx,dy,dz,dzo,iz,izo,Id) ! derivative operators
-  call d_s2b(thbB,thyB,1,dy); call d_s2b(thbT,thyT,1,dy)
-  call d_b2b(-thyB,uB,1,-iz); call d_b2b(-thyT,uT,1,iz)
-  call d_b2b(-thyT,temp,1,izo); uB = uB + temp;
-  call d_b2b(-thyB,temp,1,-izo); uT = uT + temp;
+  call d_s2b(thbB,thyB,1,d_oper%dy); call d_s2b(thbT,thyT,1,d_oper%dy)
+  call d_b2b(-thyB,uB,1,-d_oper%iz); call d_b2b(-thyT,uT,1,d_oper%iz)
+  call d_b2b(-thyT,temp,1,d_oper%izo); uB = uB + temp;
+  call d_b2b(-thyB,temp,1,-d_oper%izo); uT = uT + temp;
   call ft_2d(uB,mmax,nmax,1); call ft_2d(uT,mmax,nmax,1)
   ulinB = real(uB); ulinT = real(uT)
   ulinT = ulinT + lam*H
@@ -869,8 +883,7 @@ SUBROUTINE advect(u,v,f_x,f_y,fb_y,h_x,h_y,ub,tf,lam,lap)
 
   implicit none
 
-  real, dimension(:,:), intent(in)  :: u,v,f_x,f_y,fb_y,ub,h_x,h_y,lap
-  !real, dimension(mmax,nmax), intent(in)  :: u,v,f_x,f_y,fb_y,ub,h_x,h_y,lap
+  real, dimension(:,:),       intent(in)  :: u,v,f_x,f_y,fb_y,h_x,h_y,ub,lap
   real,                       intent(in)  :: lam
   real, dimension(mmax,nmax), intent(out) :: tf
 
@@ -897,7 +910,7 @@ SUBROUTINE advect(u,v,f_x,f_y,fb_y,h_x,h_y,ub,tf,lam,lap)
                  (ub(i,j) * f_x(i,j)))
     else
       tf(i,j) = -((v(i,j) * (f_y(i,j) + fb_y(i,j) - lam)) + &
-       ((u(i,j) + ub(i,j)) * f_x(i,j)))
+                 ((u(i,j) + ub(i,j)) * f_x(i,j)))
     endif
 
     tf(i,j) = tf(i,j) - (ekman(x,y)*lap(i,j)) ! Ekman layer
@@ -918,27 +931,26 @@ END SUBROUTINE advect
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE thadvB(dat,tend,dco,first)
+SUBROUTINE thadv(dat,dat1,dat2,tend,dco,first)
 
   ! Time-advance SUBROUTINE.
 
   implicit none
 
-  complex, dimension(2*kmax,2*lmax), intent(inout) :: dat
+  complex, dimension(2*kmax,2*lmax), intent(inout) :: dat,dat1,dat2
   complex, dimension(mmax,nmax),     intent(in)    :: tend
   real,                              intent(in)    :: dco
   logical,                           intent(in)    :: first
 
   real    :: ak,bl
+  real    :: dts
   integer :: k,l,kk,ll
   complex :: ttsp
 
-  complex, dimension(2*kmax,2*lmax), save :: told,told2
-  real,                              save :: dts
 
   if (first) then
      !  adams-bash
-     dts = dt*(12./23.); told = 0.; told2 = 0.
+     dts = dt*(12./23.)
   else
      dts = dt
   endif
@@ -947,7 +959,7 @@ SUBROUTINE thadvB(dat,tend,dco,first)
      ! 0 <= k <= +/-kmax; 0 <= l <= +/-lmax:
      ak = facx*real(k - 1); bl = facy*real(l - 1)
      ttsp = tend(k,l)/real(mmax*nmax)
-     call tstep_ab(ttsp,dat(k,l),told(k,l),told2(k,l), &
+     call tstep_ab(ttsp,dat(k,l),dat1(k,l),dat2(k,l), &
                    ak,bl,dco,dts)
 
      kk = kmax + k; ll = lmax + l
@@ -956,103 +968,39 @@ SUBROUTINE thadvB(dat,tend,dco,first)
      if (k .gt. 1) then
         ak = -1.*facx*real(kmaxp1 - k); bl = facy*real(l - 1)
         ttsp = tend(k2+k,l)/real(mmax*nmax)
-        call tstep_ab(ttsp,dat(kk,l),told(kk,l), &
-                      told2(kk,l),ak,bl,dco,dts)
+        call tstep_ab(ttsp,dat(kk,l),dat1(kk,l), &
+                      dat2(kk,l),ak,bl,dco,dts)
      endif
      ! 0 <= k <= +/-kmax; +/-lmax <= l <= -1:
      !         if (l .le. lmax) then
      if (l .gt. 1) then
         ak = facx*real(k-1); bl = -1.*facy*real(lmaxp1 - l)
         ttsp = tend(k,l2+l)/real(mmax*nmax)
-        call tstep_ab(ttsp,dat(k,ll),told(k,ll), &
-                      told2(k,ll),ak,bl,dco,dts)
+        call tstep_ab(ttsp,dat(k,ll),dat1(k,ll), &
+                      dat2(k,ll),ak,bl,dco,dts)
      endif
      ! +/-kmax <= k <= -1; +/-lmax <= l <= -1:
      !         if (k .le. kmax .and. l .le. lmax) then
      if ((k .gt. 1) .and. (l .gt. 1)) then
         ak=-1.*facx*real(kmaxp1 - k); bl=-1.*facy*real(lmaxp1 - l)
         ttsp = tend(k2+k,l2+l)/real(mmax*nmax)
-        call tstep_ab(ttsp,dat(kk,ll),told(kk,ll), &
-                      told2(kk,ll),ak,bl,dco,dts)
+        call tstep_ab(ttsp,dat(kk,ll),dat1(kk,ll), &
+                      dat2(kk,ll),ak,bl,dco,dts)
      endif
   enddo; enddo
 
   return
-END SUBROUTINE thadvB
+END SUBROUTINE thadv
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE thadvT(dat,tend,dco,first)
-
-  ! Time-advance SUBROUTINE.
-
-  implicit none
-
-  complex, dimension(2*kmax,2*lmax), intent(inout) :: dat
-  complex, dimension(mmax,nmax),     intent(in)    :: tend
-  real,                              intent(in)    :: dco
-  logical,                           intent(in)    :: first
-
-  real    :: ak,bl
-  integer :: k,l,kk,ll
-  complex :: ttsp
-
-  complex, dimension(2*kmax,2*lmax), save :: told,told2
-  real,                              save :: dts
-
-  if (first) then
-     !  adams-bash
-     dts = dt*(12./23.); told = 0.; told2 = 0.
-  else
-     dts = dt
-  endif
-
-  do k=1,kmax; do l=1,lmax
-     ! 0 <= k <= +/-kmax; 0 <= l <= +/-lmax:
-     ak = facx*real(k - 1); bl = facy*real(l - 1)
-     ttsp = tend(k,l)/real(mmax*nmax)
-     call tstep_ab(ttsp,dat(k,l),told(k,l),told2(k,l), &
-                   ak,bl,dco,dts)
-
-     kk = kmax + k; ll = lmax + l
-     ! +/-kmax <= k <= -1; 0 <= l <= +/-lmax:
-     !         if (k .gt. 1 .and. k .lt. kmax) then
-     if (k .gt. 1) then
-        ak = -1.*facx*real(kmaxp1 - k); bl = facy*real(l - 1)
-        ttsp = tend(k2+k,l)/real(mmax*nmax)
-        call tstep_ab(ttsp,dat(kk,l),told(kk,l), &
-                      told2(kk,l),ak,bl,dco,dts)
-     endif
-     ! 0 <= k <= +/-kmax; +/-lmax <= l <= -1:
-     !         if (l .le. lmax) then
-     if (l .gt. 1) then
-        ak = facx*real(k-1); bl = -1.*facy*real(lmaxp1 - l)
-        ttsp = tend(k,l2+l)/real(mmax*nmax)
-        call tstep_ab(ttsp,dat(k,ll),told(k,ll), &
-                      told2(k,ll),ak,bl,dco,dts)
-     endif
-     ! +/-kmax <= k <= -1; +/-lmax <= l <= -1:
-     !         if (k .le. kmax .and. l .le. lmax) then
-     if ((k .gt. 1) .and. (l .gt. 1)) then
-        ak=-1.*facx*real(kmaxp1 - k); bl=-1.*facy*real(lmaxp1 - l)
-        ttsp = tend(k2+k,l2+l)/real(mmax*nmax)
-        call tstep_ab(ttsp,dat(kk,ll),told(kk,ll), &
-                      told2(kk,ll),ak,bl,dco,dts)
-     endif
-  enddo; enddo
-
-  return
-END SUBROUTINE thadvT
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE tstep_ab(tend,dat,told,told2,ak,bl,dco,dts)
+SUBROUTINE tstep_ab(tend,dat,dat1,dat2,ak,bl,dco,dts)
 
   ! 3rd-order Adams-Bashforth time step (Durran 1991).
 
   implicit none
 
-  complex, intent(inout) :: dat, told, told2
+  complex, intent(inout) :: dat, dat1, dat2
   complex, intent(in)    :: tend
   real,    intent(in)    :: ak,bl,dco,dts
 
@@ -1074,14 +1022,14 @@ SUBROUTINE tstep_ab(tend,dat,told,told2,ak,bl,dco,dts)
   !tfac = dco*dts*((ak**n)+(bl**n))
   !tfac = dco*dts*((ak**2)+(bl**2))**(n/2)
 
-  told = told*exp(-1.*tfac)
-  told2 = told2*exp(-tfac)
+  dat1 = dat1*exp(-1.*tfac)
+  dat2 = dat2*exp(-tfac)
 
-  temp = (23.*tend) - (16.*told) + (5.*told2)
+  temp = (23.*tend) - (16.*dat1) + (5.*dat2)
   new = dat + ( (dts/12.)*(temp) )
 
-  !dat=new*exp(-1.*tfac); told2=told*exp(tfac); told=tend
-  dat=new*exp(-1.*tfac); told2=told; told=tend
+  !dat=new*exp(-1.*tfac); dat2=dat1*exp(tfac); dat1=tend
+  dat=new*exp(-1.*tfac); dat2=dat1; dat1=tend
 
   return
 END SUBROUTINE tstep_ab
@@ -1109,13 +1057,15 @@ END SUBROUTINE ft_2d
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE d_setup(dx,dy,dz,dzo,iz,izo,Id)
+SUBROUTINE d_setup(d_oper)
 
   ! Set up matrices for derivatives and integrals.
 
   implicit none
 
-  complex, dimension(2*kmax,2*lmax), intent(out) :: dx,dy,dz,dzo,iz,izo,Id
+  type(derivative_operators), intent(out) :: d_oper
+
+  complex, dimension(2*kmax,2*lmax) :: dx,dy,dz,dzo,iz,izo,Id
 
   real    :: m
   integer :: k,l
@@ -1134,7 +1084,7 @@ SUBROUTINE d_setup(dx,dy,dz,dzo,iz,izo,Id)
      dy(:,2*lmax-l+2) = -1.*dy(:,l)
   enddo
 
-  ! dz,dzi
+  ! dz,dzo
   do k=1,2*kmax; do l=1,2*lmax
      if (k .eq. 1 .and. l .eq. 1) then 
         dz(k,l) = 0.; dzo(k,l) = 0.; iz(k,l) = 0.; izo(k,l) = 0.
@@ -1166,6 +1116,11 @@ SUBROUTINE d_setup(dx,dy,dz,dzo,iz,izo,Id)
 
   ! Id
   Id = 1.0
+
+  d_oper%dx  = dx ; d_oper%dy  = dy
+  d_oper%dz  = dz ; d_oper%dzo = dzo
+  d_oper%iz  = iz ; d_oper%izo = izo
+  d_oper%Id  = Id
 
   return
 END SUBROUTINE d_setup
@@ -1360,7 +1315,7 @@ FUNCTION HW_theta(y,z)
   yp = y - (0.5*(YL - hwp))
   if (yp .lt. 0. .and. amu .ne. 0) yp = 0
   if (yp .gt. hwp .and. amu .ne. 0) yp = hwp
-  HW_theta = (-shear*yp)+(amu/2.) * (yp+(hiccup*(cosh(ryl*z)/sinh(ryl))*sin(yp*ryl)))
+  HW_theta = (-shear*yp) + (amu/2.) * (yp+(hiccup*(cosh(ryl*z)/sinh(ryl))*sin(yp*ryl)))
   HW_theta = amp*HW_theta
 
   return
@@ -1555,9 +1510,6 @@ SUBROUTINE terrain(hx,hy,hu,hv)
   real    :: asig,rr,lam
   integer :: i,j
 
-  ! fool's day 2009 for angie
-  complex, dimension(2*kmax,2*lmax), save :: dx,dy,dz,dzo,iz,izo,dzi,Id
-
   ! barotropic wind
   hu = 0.; hv = 0.
   
@@ -1582,10 +1534,8 @@ SUBROUTINE terrain(hx,hy,hu,hv)
   hh = hh / (mmax*nmax)
 
   ! form spectral h_x, h_y:
-  ! fool's day 2009 for angie
-  call d_setup(dx,dy,dz,dzo,iz,izo,Id)    ! derivative operators
-  call d_b2b(hh,hxs,1,dx) ! x derivative: small to big domain.
-  call d_b2b(hh,hys,1,dy) ! y derivative: small to big domain.
+  call d_b2b(hh,hxs,1,d_oper%dx) ! x derivative: small to big domain.
+  call d_b2b(hh,hys,1,d_oper%dy) ! y derivative: small to big domain.
 
   ! back to grid point space
   call ft_2d(hxs,mmax,nmax,1)
@@ -1599,7 +1549,8 @@ SUBROUTINE terrain(hx,hy,hu,hv)
      Rblank = 0.; Cblank = 0. ! for HsQG inversion call
   
      !first make spectral topo height on small grid
-     dx = XL/real((2*kmax)); dy = YL/real((2*lmax))
+     !dx = XL/real((2*kmax)); dy = YL/real((2*lmax))
+     ddx = XL/real((2*kmax)); ddy = YL/real((2*lmax))
      do i=1,2*kmax; do j=1,2*lmax
         x = (i-1)*ddx; y = (j-1)*ddy
         amdx=min(abs(x-xcen),abs(XL+x-xcen),abs(XL-x+xcen))

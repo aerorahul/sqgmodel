@@ -5,12 +5,14 @@
 ! $Revision$
 ! $Id$
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!
+
 ! a module to be used with spectral surface-based models.
-!
+
 MODULE spectral
 
-  use netcdf
+  USE netcdf
+
+  implicit none
 
   integer, parameter :: model = 1               ! 0:2D; 1:2sQG; 2:sQG-trop; 3:sQG-sfc; 4:HsQG
   real,    parameter :: dt    = 0.01            ! model time step
@@ -51,8 +53,8 @@ MODULE spectral
   ! do not modify below this point:
   integer, parameter :: kmid=kmax/2,     lmid=lmax/2,     &
                         mmax=3.125*kmax, nmax=3.125*lmax, &
-                        l2=nmax-lmax,    k2=mmax-kmax,    &
-                        lmaxp1=lmax+1,   kmaxp1=kmax+1
+                        k2=mmax-kmax,    l2=nmax-lmax,    &
+                        kmaxp1=kmax+1,   lmaxp1=lmax+1
   real,    parameter :: facx=2.*pi/XL,   facy=2.*pi/YL
   real,    parameter :: hwp=5.539118,    ryl=2.*pi/hwp
 
@@ -108,4 +110,4 @@ CONTAINS
     return
   END SUBROUTINE dx_echo
   ! END pvinv specific-------------------------------------------------------
-ENDMODULE spectral
+END MODULE spectral
