@@ -222,8 +222,8 @@ SUBROUTINE main
             thspB1 = 0.; thspB2 = 0.
             thspT1 = 0.; thspT2 = 0.
         endif
-        if (bot) call thadv(thspB,thspB1,thspB2,tthspB,dco,first)
-        if (top) call thadv(thspT,thspT1,thspT2,tthspT,dco,first)
+        if (bot) call tadv(thspB,thspB1,thspB2,tthspB,dco,first)
+        if (top) call tadv(thspT,thspT1,thspT2,tthspT,dco,first)
 
         thspB(kmax,:) = 0.; thspB(lmax,:) = 0.
     
@@ -931,7 +931,7 @@ END SUBROUTINE advect
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE thadv(dat,dat1,dat2,tend,dco,first)
+SUBROUTINE tadv(dat,dat1,dat2,tend,dco,first)
 
   ! Time-advance SUBROUTINE.
 
@@ -990,7 +990,7 @@ SUBROUTINE thadv(dat,dat1,dat2,tend,dco,first)
   enddo; enddo
 
   return
-END SUBROUTINE thadv
+END SUBROUTINE tadv
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
