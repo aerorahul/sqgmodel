@@ -20,21 +20,17 @@ PROGRAM sqg_spectral
     type derivative_operators
         complex, dimension(2*kmax,2*lmax) :: dx,dy,dz,dzo,iz,izo,Id
     end type derivative_operators
-
     type(derivative_operators) :: d_oper
 
-    ! initialize derivative operators:
-    call d_setup(d_oper)
-
     ! run the main code
-    call main
+    call sqg_2b
 
     stop
 
 CONTAINS
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE main
+SUBROUTINE sqg_2b
 
     implicit none
 
@@ -76,6 +72,9 @@ SUBROUTINE main
 
     ! initialize diffusion: 
     call diffusion(dco)
+
+    ! initialize derivative operators:
+    call d_setup()
 
     ! initialize (read from Matlab file or restart file, option to add pert. to restart file):
     if (restart) then
@@ -239,7 +238,7 @@ SUBROUTINE main
     call write_diag(finalfile,0,Rblanks,Rblanks)
     call dump(thspB,thspT,.FALSE.,lam,1,finalfile)
 
-END SUBROUTINE main
+END SUBROUTINE sqg_2b
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -288,20 +287,6 @@ SUBROUTINE invert(ithspB,ithspT,thxBr,thxTr,thyBr,thyTr,vBr,vTr,uBr,uTr, &
   ! flag for next-order corrections
   correct = .FALSE.
   if (Ross .gt. 1.e-5) correct = .TRUE.
-
-!!!!!!!!!!!!!!!!! Set-up on first time step !!!!!!!!!!!!!!!!!!!!!!!!!!
-  if (first) then 
-     !         print*,maxval(abs(dx))
-     !         print*,maxval(abs(dy))
-     !         print*,maxval(abs(dz))
-     !         print*,maxval(abs(iz))
-     !         print*,maxval(abs(dzo))
-     !         print*,maxval(abs(izo))
-     ! switches for removing rotation or divergence (sQG only)
-     !         pf = 1; gf = 1; bf = 0  ! control: full sqg+1 corrections
-     !         pf = 0; gf = 1; bf = 1  ! no rotational correction
-     !         pf = 1; gf = 0; bf = -1 ! no divergent correction
-  endif
 
   thspB = ithspB; thspT = ithspT ! local copies of spectral boundary theta
 !!!!!!!!!!!!!!!!!!!!!!!!!!! Grad Theta !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1057,13 +1042,11 @@ END SUBROUTINE ft_2d
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE d_setup(d_oper)
+SUBROUTINE d_setup()
 
   ! Set up matrices for derivatives and integrals.
 
   implicit none
-
-  type(derivative_operators), intent(out) :: d_oper
 
   complex, dimension(2*kmax,2*lmax) :: dx,dy,dz,dzo,iz,izo,Id
 
