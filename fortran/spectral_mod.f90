@@ -15,7 +15,7 @@ MODULE spectral
   implicit none
 
   integer, parameter :: model = 1               ! 0:2D; 1:2sQG; 2:sQG-trop; 3:sQG-sfc; 4:HsQG
-  real,    parameter :: dt    = 0.01            ! model time step
+  real,    parameter :: dt    = 0.009           ! model time step
   integer, parameter :: ntims = 1001            ! number of model time steps
   integer, parameter :: iplot = 100             ! plots every iplot time steps
   integer, parameter :: imean = int(10.e3/dt)   ! compute area mean every imean
