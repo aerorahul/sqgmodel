@@ -57,9 +57,10 @@ BIN    = .
 #------------------------------------------------------------
 
 #------------------------------------------------------------
-sQG_OBJ = $(SRC)/SPECTRAL.f90 \
-          $(SRC)/sqg_2b.f90   \
-          $(SRC)/fft.f90
+sQG_OBJ = $(SRC)/spectral_mod.f90 \
+          $(SRC)/fft.f90 \
+          $(SRC)/sqg_mod.f90 \
+          $(SRC)/sqg.f90
 
 arBase_OBJ = $(SRC)/add_or_remove_base.f90
 
