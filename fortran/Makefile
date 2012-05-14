@@ -15,35 +15,43 @@
 machine := ${shell uname -m}
 host := ${shell hostname -s}
 
+# Discover
 ifeq (${machine}, x86_64)
-NETCDF = /usr/local/other/netcdf/4.1.1/serial_Intel-11.1.069 
-NCFLAGS = -L${NETCDF}/lib -lnetcdff -lnetcdf -I${NETCDF}/include
+NETCDF = /usr/local/other/netcdf/4.1.1/serial_Intel-11.1.069
+HDF    = /usr/local/other/hdf5/1.8.4/serial_intel-11.1.069
+ZLIB   = /usr/local/other/zlib/1.2.3-intel-11.1.069
+SZIP   = /usr/local/other/szip/2.1/Intel-11.1.069
+INCS = -I$(NETCDF)/include
+LIBS = -L$(NETCDF)/lib -lnetcdf \
+       -L$(HDF)/lib -lhdf5_hl -lhdf5  \
+       -L$(ZLIB)/lib -lz -lm  \
+       -L$(SZIP)/lib -lsz
+NCFLAGS = $(LIBS) $(INCS)
 mFFLAGS =
 endif
 
+#Stratopause, trident, blue, winterfell, eye
 ifeq (${host}, stratopause)
 NETCDF = /usr
-NCFLAGS = -L${NETCDF}/lib -lnetcdff -lnetcdf -I${NETCDF}/include
 mFFLAGS =
-endif
-
+else
 ifeq (${host}, trident)
 NETCDF  = /ford1/local/EL6/netcdf4
-NCFLAGS = -L${NETCDF}/lib -lnetcdff -lnetcdf -I${NETCDF}/include
 mFFLAGS =
-endif
-
+else
 ifeq (${host}, blue)
 NETCDF  = /ford1/local/EL5/netcdf4
-NCFLAGS = -L${NETCDF}/lib -lnetcdff -lnetcdf -I${NETCDF}/include
 mFFLAGS =
-endif
-
+else
 ifeq (${host}, winterfell)
 NETCDF  = /opt/netcdf
-NCFLAGS = -L${NETCDF}/lib -lnetcdf -I${NETCDF}/include
 mFFLAGS = -shared-intel
 endif
+endif
+endif
+endif
+
+NCFLAGS = -L${NETCDF}/lib -lnetcdff -lnetcdf -I${NETCDF}/include
 #------------------------------------------------------------
 
 #------------------------------------------------------------
