@@ -58,17 +58,23 @@ NCFLAGS = -L${NETCDF}/lib -lnetcdff -lnetcdf -I${NETCDF}/include
 F90    = ifort
 FFLAGS = -w -O3 -ftz -align all -fno-alias -fp-model precise -cm -axT -u -convert big_endian -parallel $(mFFLAGS)
 # Use these flags for development / testing
-#FFLAGS = -O0 -g -check all -ftz -vec-report0 -fp-model precise -ftrapuv -traceback $(mFFLAGS)
+FFLAGS = -O0 -g -check all -ftz -vec-report0 -fp-model precise -ftrapuv -traceback $(mFFLAGS)
 RM     = rm -f
 SRC    = .
 BIN    = .
 #------------------------------------------------------------
 
 #------------------------------------------------------------
-sQG_OBJ = $(SRC)/spectral_mod.f90 \
-          $(SRC)/fft.f90 \
+common_OBJ = $(SRC)/spectral_mod.f90 \
+             $(SRC)/fft.f90
+
+sQG_OBJ = $(common_OBJ) \
           $(SRC)/sqg_mod.f90 \
           $(SRC)/sqg.f90
+
+pvinv_OBJ = $(common_OBJ) \
+            $(SRC)/pvinv_mod.f90 \
+            $(SRC)/pvinv.f90
 
 arBase_OBJ = $(SRC)/add_or_remove_base.f90
 
@@ -81,26 +87,31 @@ sqg_diag_OBJ= $(SRC)/sqg_diag.f90
 .f90.o :
 	$(F90) $(FFLAGS) -c $< -o $@
 
+all : sQG pvinv \
+      add_or_remove_base \
+      sqg_stats \
+      sqg_diag
+
+
 sQG : $(sQG_OBJ)
 	$(F90) $(FFLAGS) -o $(BIN)/sQG $(sQG_OBJ) $(NCFLAGS)
+
+pvinv : $(pvinv_OBJ)
+	$(F90) $(FFLAGS) -o $(BIN)/pvinv $(pvinv_OBJ) $(NCFLAGS)
 
 add_or_remove_base : $(arBase_OBJ)
 	$(F90) $(FFLAGS) -o $(BIN)/add_or_remove_base $(arBase_OBJ) $(NCFLAGS)
 
-sqg_stats: $(sqg_stats_OBJ)
+sqg_stats : $(sqg_stats_OBJ)
 	$(F90) $(FFLAGS) -o $(BIN)/sqg_stats $(sqg_stats_OBJ) $(NCFLAGS)
 
-sqg_diag: $(sqg_diag_OBJ)
+sqg_diag : $(sqg_diag_OBJ)
 	$(F90) $(FFLAGS) -o $(BIN)/sqg_diag $(sqg_diag_OBJ) $(NCFLAGS)
 
-all: sQG \
-     add_or_remove_base \
-     sqg_stats \
-     sqg_diag
-
-clean:
+clean :
 	$(RM) $(SRC)/*.o $(RM) $(SRC)/*.mod \
-$(RM) $(BIN)/sQG   \
+$(RM) $(BIN)/sQG \
+$(RM) $(BIN)/pvinv \
 $(RM) $(BIN)/add_or_remove_base \
 $(RM) $(BIN)/sqg_stats \
 $(RM) $(BIN)/sqg_diag

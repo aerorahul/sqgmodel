@@ -54,9 +54,10 @@ MODULE spectral_mod
     real,    parameter :: YL = 2*hwp            ! y domain length (2*pi, 2*5.539118)
     real,    parameter :: H  = 1.0              ! z domain length (0.01, 0.1, 1.0, 10.0)
 
-    real,    parameter :: ZH    = H             ! z domain length ( needed for pinv )
-    integer, parameter :: pmax  = 11            ! number of vertical levels
-    integer, parameter :: order = 2             ! 0:leading order only; 1-first order only; 2-full version
+    real,    parameter :: ZH       = H          ! z domain length ( needed for pinv )
+    integer, parameter :: pmax     = 11         ! number of vertical levels
+    integer, parameter :: order    = 2          ! 0:leading order only; 1-first order only; 2-full version
+    logical, parameter :: tanhgrid = .FALSE.    ! tanh grid in vertical (.TRUE./.FALSE.)
 
     integer, parameter :: verbose = 2           ! 0:no mesgs; 1:imp only; 2:all
 

@@ -1444,57 +1444,6 @@ END SUBROUTINE terrain
 !========================================================================
 
 !========================================================================
-SUBROUTINE scaling(grav,tnot,Ns,km,Cor,Ls,Hs,Us,Ws,Ps,Ts)
-! scaling parameters:
-
-    implicit none
-
-    real, intent(out) :: grav,tnot,Ns,km,Cor,Ls,Hs,Us,Ws,Ps,Ts
-
-    grav = 9.81        ! gravitational constant (m s^-2)
-    tnot = 300.        ! theta constant at Z = 0 (K)
-    Ns   = 1.e-2       ! bouyancy frequency
-    km   = 1000.       ! 1000 m in a kilometer
-    Cor  = 1.e-4       ! Coriolis parameter (s^-1)
-    Hs   = 10.*km      ! vertical length scale (m)
-    Ls   = Ns*Hs/Cor   ! horizontal length scale (m)
-
-    if (Ross .ne. 0) then 
-        Us = Ross*Cor*Ls   ! Horizontal wind scale (m s^-1)
-        if (verbose .gt. 1)  print*,'Us = ',Us
-    else
-        Us = 1.0
-    endif
-
-    Ws = Ross*Hs*Us/Ls     ! Vertical wind scale (m s^-1)
-    Ps = Us*Cor*Ls         ! geopotential scale (m^2 s^-2)
-    Ts = Ps*tnot/(grav*Hs) ! potential temperature (K)
-
-    return
-END SUBROUTINE scaling
-!========================================================================
-
-!========================================================================
-SUBROUTINE dx_echo(dxs,dys,dzs,dts)
-! send back dimensional values for dx, dy, dz, and dt.
-
-    implicit none
-
-    real, intent(out) :: dxs,dys,dzs,dts
-    real :: grav,tnot,Ns,km,Cor,Ls,Hs,Us,Ws,Ps,Ts
-
-    call scaling(grav,tnot,Ns,km,Cor,Ls,Hs,Us,Ws,Ps,Ts)
-
-    dxs = Ls*XL/real(2*kmax) ! meters
-    dys = Ls*YL/real(2*kmax) ! meters
-    dzs = Hs*ZH/real(pmax)   ! meters
-    dts = Ls*dt/Us           ! seconds
-
-    return
-END SUBROUTINE dx_echo
-!========================================================================
-
-!========================================================================
 SUBROUTINE nc_check(ierr,subr_name,context)
 
   ! check for netcdf errors
