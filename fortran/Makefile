@@ -58,7 +58,7 @@ NCFLAGS = -L${NETCDF}/lib -lnetcdff -lnetcdf -I${NETCDF}/include
 F90    = ifort
 FFLAGS = -w -O3 -ftz -align all -fno-alias -fp-model precise -cm -axT -u -convert big_endian -parallel $(mFFLAGS)
 # Use these flags for development / testing
-FFLAGS = -O0 -g -check all -ftz -vec-report0 -fp-model precise -ftrapuv -traceback $(mFFLAGS)
+#FFLAGS = -O0 -g -check all -ftz -vec-report0 -fp-model precise -ftrapuv -traceback $(mFFLAGS)
 RM     = rm -f
 SRC    = .
 BIN    = .
@@ -91,7 +91,6 @@ all : sQG pvinv \
       add_or_remove_base \
       sqg_stats \
       sqg_diag
-
 
 sQG : $(sQG_OBJ)
 	$(F90) $(FFLAGS) -o $(BIN)/sQG $(sQG_OBJ) $(NCFLAGS)

@@ -74,8 +74,10 @@ SUBROUTINE sqg_main()
     if (verbose .gt. 1) print*,'extrema ulinT = ',maxval(ulinT),minval(ulinT)
 
     ! write basic state to disk (linear shear:  ON : 1, OFF : 0)
-    !call write_diag('base.nc',0,thbB,thbT)
-    !call dump(thbB,thbT,.TRUE.,lam,1,'base.nc')
+    if ( .not. ibase ) then
+        call write_diag('basic_state.nc',0,Rblank,Rblank)
+        call dump(thbB,thbT,.TRUE.,lam,1,'basic_state.nc')
+    endif
 
     ! create output file
     call write_diag(outfile,0,Rblank,Rblank)
@@ -147,8 +149,13 @@ SUBROUTINE sqg_main()
         if ( inorm ) call norm(thspB,thspT,itime)
 
         ! write data to file for plots
-        if ( mod((itime-1),iplot) .eq. 0 )  &
-            call dump(thspB+thbB,thspT+thbT,.TRUE.,lam,itime,outfile)
+        if ( mod((itime-1),iplot) .eq. 0 ) then
+            if ( ibase ) then
+                call dump(thspB+thbB,thspT+thbT,.TRUE.,lam,itime,outfile)
+            else
+                call dump(thspB,thspT,.FALSE.,lam,itime,outfile)
+            endif
+        endif
 
         ! spectral advection:
         if (bot) call advect(uB,   vB,   thxB,thyB,thbyB,hx,    hy,    ulinB,tthB,lam,lap  )
@@ -585,8 +592,8 @@ SUBROUTINE init(infile,thB,thT)
     real, dimension(2*kmax,2*lmax,2)            :: theta
 
     real    :: fac
-    integer :: twokmax,twolmax,levmax
-    integer :: ncid, dimid, varid
+    integer :: twokmax,twolmax,levmax,timemax
+    integer :: ncid, dimid, varid, start(4), count(4)
 
     if (verbose .gt. 0)  print*,'initializing theta fields...'
     thB = 0.0 ; thT = 0.0
@@ -598,9 +605,11 @@ SUBROUTINE init(infile,thB,thT)
     call nc_check( nf90_inquire_dimension(ncid, dimid, len = twolmax), 'init ', 'inquire_dimension ny,' // trim(infile) )
     call nc_check( nf90_inq_dimid(ncid, 'nz', dimid), 'init', 'inq_dimid nz, ' // trim(infile) )
     call nc_check( nf90_inquire_dimension(ncid, dimid, len = levmax),  'init ', 'inquire_dimension nz,' // trim(infile) )
+    call nc_check( nf90_inq_dimid(ncid, 'time', dimid), 'init', 'inq_dimid time, ' // trim(infile) )
+    call nc_check( nf90_inquire_dimension(ncid, dimid, len = timemax),  'init ', 'inquire_dimension time,' // trim(infile) )
 
     if (twokmax .ne. 2*kmax .and. twolmax .ne. 2*lmax) then  
-        print*,'x and y resolution from sqgInputt.nc do not match spectral_mod.f90!!!'
+        print*,'x and y resolution from sqgInput.nc do not match spectral_mod.f90!!!'
         print*,'x and y from spectral_mod.f90 : ', 2*kmax, 2*lmax
         print*,'x and y from sqgInput.nc      : ', twokmax,twolmax
         call nc_check( nf90_close(ncid), 'init', 'close, ' // trim(infile) )
@@ -615,8 +624,19 @@ SUBROUTINE init(infile,thB,thT)
         stop
     endif
 
+    if ( timemax .gt. 1 ) then
+        print*,'number of times in sqgInput.nc is ', timemax
+        print*,'choosing time = ', timemax
+    endif
+
+    start(1) = 1       ; count(1) = 2*kmax
+    start(2) = 1       ; count(2) = 2*lmax
+    start(3) = 1       ; count(3) = 2
+    start(4) = timemax ; count(4) = 1
+
     call nc_check( nf90_inq_varid(ncid, 'theta', varid), 'init', 'inq_varid theta, ' // trim(infile) )
     call nc_check( nf90_get_var(ncid, varid, theta), 'init', 'get_var theta, ' // trim(infile) )
+    call nc_check( nf90_get_var(ncid, varid, theta, start, count), 'init', 'get_var theta, ' // trim(infile) )
     call nc_check( nf90_close(ncid), 'init', 'close, ' // trim(infile) )
 
     thB = theta(:,:,1)

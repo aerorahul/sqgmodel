@@ -20,14 +20,15 @@ MODULE spectral_mod
     integer, parameter :: model = 1             ! 0:2D; 1:2sQG; 2:sQG-trop; 3:sQG-sfc; 4:HsQG
     real,    parameter :: dt    = 0.01          ! model time step
 
-    integer, parameter :: ntims = 10001         ! number of model time steps
+    integer, parameter :: ntims = 1001          ! number of model time steps
     integer, parameter :: iplot = 100           ! plots every iplot time steps
     integer, parameter :: imean = int(10.e3/dt) ! compute area mean every imean
 
-    logical, parameter :: linear = .FALSE.      ! flag for linear advection
-    logical, parameter :: trop   = .FALSE.      ! flag for tropopause geometry
+    logical, parameter :: linear = .FALSE.      ! flag for linear advection (.TRUE./.FALSE.)
+    logical, parameter :: trop   = .FALSE.      ! flag for tropopause geometry (.TRUE./.FALSE.)
     logical, parameter :: grow   = .FALSE.      ! grow a normal mode (.TRUE./.FALSE.)
-    logical, parameter :: inorm  = .FALSE.      ! flag for computing norm
+    logical, parameter :: inorm  = .FALSE.      ! flag for computing norm (.TRUE./.FALSE.)
+    logical, parameter :: ibase  = .TRUE.       ! flag to add base state to output file (.TRUE./.FALSE.)
 
     logical, parameter :: iterr = .FALSE.       ! flag for terrain
     real,    parameter :: hamp  = 0.6           ! height of terrain (0.6)
