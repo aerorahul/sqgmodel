@@ -41,6 +41,7 @@ SUBROUTINE sqg_main()
     real,    dimension(mmax,nmax)     :: thbyB,thbyT
     real,    dimension(mmax,nmax)     :: ulinB,ulinT
     ! input and output
+    character(len=64), parameter      :: bsefile = 'sqgBasic.nc'
     character(len=64), parameter      :: inpfile = 'sqgInput.nc'
     character(len=64), parameter      :: outfile = 'sqgOutput.nc'
     character(len=64), parameter      :: rstfile = 'sqgRestart.nc'
@@ -73,10 +74,10 @@ SUBROUTINE sqg_main()
     if (verbose .gt. 1) print*,'lam = ',lam
     if (verbose .gt. 1) print*,'extrema ulinT = ',maxval(ulinT),minval(ulinT)
 
-    ! write basic state to disk (linear shear:  ON : 1, OFF : 0)
+    ! write basic state to disk
     if ( .not. ibase ) then
-        call write_diag('basic_state.nc',0,Rblank,Rblank)
-        call dump(thbB,thbT,.TRUE.,lam,1,'basic_state.nc')
+        call write_diag(bsefile,0,Rblank,Rblank)
+        call dump(thbB,thbT,.TRUE.,lam,1,bsefile)
     endif
 
     ! create output file

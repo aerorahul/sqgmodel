@@ -43,6 +43,7 @@ SUBROUTINE pvinv_main()
 
     character(len=64), parameter :: inpfile = 'pvInput.nc'
     character(len=64), parameter :: outfile = 'pvOutput.nc'
+    character(len=64), parameter :: bsefile = 'sqgBasic.nc'
 
     real, dimension(2*kmax,2*lmax,2),    parameter :: blank2 = 0.0
     real, dimension(2*kmax,2*lmax,pmax), parameter :: blank3 = 0.0
@@ -51,7 +52,7 @@ SUBROUTINE pvinv_main()
 
     call write_diag(outfile,0,blank2,blank2,blank2,blank2,blank3,blank3,blank3,blank3,blank3,blank3)
 
-    if ( ibase ) call init('basic_state.nc',1,thbB,thbT,pvb)
+    if ( ibase ) call init(bsefile,1,thbB,thbT,pvb)
 
     do itim = 1, ntims
 
