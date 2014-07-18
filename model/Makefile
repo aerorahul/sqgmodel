@@ -32,6 +32,8 @@ endif
 #stratopause, dorne, valyria
 ifeq (${host}, stratopause)
 NETCDF = /usr
+LIBS = ${shell $(NETCDF)/bin/nc-config --flibs}
+INCS = -I$(NETCDF)/include/netcdf
 mFFLAGS =
 else
 ifeq (${host}, dorne)
@@ -85,13 +87,13 @@ sqg_diag_OBJ= $(SRC)/sqg_diag.f90
 .f90.o :
 	$(F90) $(FFLAGS) -c $< -o $@
 
-all : sQG pvinv \
+all : sqg pvinv \
       add_or_remove_base \
       sqg_stats \
       sqg_diag
 
 sQG : $(sQG_OBJ)
-	$(F90) $(FFLAGS) -o $(BIN)/sQG $(sQG_OBJ) $(NCFLAGS)
+	$(F90) $(FFLAGS) -o $(BIN)/sqg $(sQG_OBJ) $(NCFLAGS)
 
 pvinv : $(pvinv_OBJ)
 	$(F90) $(FFLAGS) -o $(BIN)/pvinv $(pvinv_OBJ) $(NCFLAGS)
