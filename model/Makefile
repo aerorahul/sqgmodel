@@ -7,7 +7,7 @@
 #------------------------------------------------------------
 
 #------------------------------------------------------------
-# Makefile for sQG program
+# Makefile for sqg program
 # always do "make clean" first.
 #------------------------------------------------------------
 
@@ -68,7 +68,7 @@ BIN    = .
 common_OBJ = $(SRC)/spectral_mod.f90 \
              $(SRC)/fft.f90
 
-sQG_OBJ = $(common_OBJ) \
+sqg_OBJ = $(common_OBJ) \
           $(SRC)/sqg_mod.f90 \
           $(SRC)/sqg.f90
 
@@ -92,8 +92,8 @@ all : sqg pvinv \
       sqg_stats \
       sqg_diag
 
-sQG : $(sQG_OBJ)
-	$(F90) $(FFLAGS) -o $(BIN)/sqg $(sQG_OBJ) $(NCFLAGS)
+sqg : $(sqg_OBJ)
+	$(F90) $(FFLAGS) -o $(BIN)/sqg $(sqg_OBJ) $(NCFLAGS)
 
 pvinv : $(pvinv_OBJ)
 	$(F90) $(FFLAGS) -o $(BIN)/pvinv $(pvinv_OBJ) $(NCFLAGS)
@@ -109,7 +109,7 @@ sqg_diag : $(sqg_diag_OBJ)
 
 clean :
 	$(RM) $(SRC)/*.o $(RM) $(SRC)/*.mod \
-$(RM) $(BIN)/sQG \
+$(RM) $(BIN)/sqg \
 $(RM) $(BIN)/pvinv \
 $(RM) $(BIN)/add_or_remove_base \
 $(RM) $(BIN)/sqg_stats \
