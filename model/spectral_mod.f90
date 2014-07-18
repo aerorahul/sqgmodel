@@ -73,10 +73,21 @@ MODULE spectral_mod
     real,    parameter :: facx=2.0*pi/XL,  facy=2.0*pi/YL
     real,    parameter :: ryl=2.0*pi/hwp
 
-    type derivative_operators
+    type model_static
+        ! diffusion
+        real                              :: dco
+        ! derivative operators
         complex, dimension(2*kmax,2*lmax) :: dx,dy,dz,dzo,iz,izo,Id
-    end type derivative_operators
-    type(derivative_operators) :: d_oper
+        ! basic state
+        complex, dimension(2*kmax,2*lmax) :: thbB,thbT
+        real,    dimension(mmax,nmax)     :: thbyB,thbyT
+        real,    dimension(mmax,nmax)     :: ulinB,ulinT
+        real                              :: lam
+        ! terrain
+        real,    dimension(mmax,nmax)     :: hx,hy,hu,hv
+        ! advection flags
+        logical                           :: bot,top
+    end type model_static
 
 END MODULE spectral_mod
 !============================================================
