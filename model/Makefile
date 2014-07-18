@@ -26,32 +26,30 @@ LIBS = -L$(NETCDF)/lib -lnetcdf \
        -L$(HDF)/lib -lhdf5_hl -lhdf5  \
        -L$(ZLIB)/lib -lz -lm  \
        -L$(SZIP)/lib -lsz
-NCFLAGS = $(LIBS) $(INCS)
 mFFLAGS =
 endif
 
-#Stratopause, trident, blue, winterfell, eye
+#stratopause, dorne, valyria
 ifeq (${host}, stratopause)
 NETCDF = /usr
 mFFLAGS =
 else
-ifeq (${host}, trident)
-NETCDF  = /ford1/local/EL6/netcdf4
-mFFLAGS =
+ifeq (${host}, dorne)
+NETCDF  = /opt/Baselibs/v3.2.1/i686-apple-darwin12.0.0/ifort/Darwin
+LIBS = ${shell $(NETCDF)/bin/nc-config --flibs}
+INCS = -I$(NETCDF)/include/netcdf
+mFFLAGS = -shared-intel
 else
-ifeq (${host}, blue)
-NETCDF  = /ford1/local/EL5/netcdf4
-mFFLAGS =
-else
-ifeq (${host}, winterfell)
-NETCDF  = /opt/netcdf
+ifeq (${host}, valyria)
+NETCDF  = /opt/Baselibs/v3.2.1/i686-apple-darwin12.0.0/ifort/Darwin
+LIBS = ${shell $(NETCDF)/bin/nc-config --flibs}
+INCS = -I$(NETCDF)/include/netcdf
 mFFLAGS = -shared-intel
 endif
 endif
 endif
-endif
 
-NCFLAGS = -L${NETCDF}/lib -lnetcdff -lnetcdf -I${NETCDF}/include
+NCFLAGS = $(LIBS) $(INCS)
 #------------------------------------------------------------
 
 #------------------------------------------------------------
