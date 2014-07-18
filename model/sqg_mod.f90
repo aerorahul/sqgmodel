@@ -26,7 +26,7 @@ SUBROUTINE sqg_main()
     ! spectral values
     complex, dimension(2*kmax,2*lmax) :: thbB,thspB,thspB1,thspB2
     complex, dimension(2*kmax,2*lmax) :: thbT,thspT,thspT1,thspT2
-    complex, dimension(2*kmax,2*lmax) :: sB,sBold
+    complex, dimension(2*kmax,2*lmax) :: sB
     ! spectral work arrays
     real,    dimension(2*kmax,2*lmax) :: thxyB,thxyT
     ! grid point values
@@ -49,7 +49,7 @@ SUBROUTINE sqg_main()
     real                              :: dco,lam
     real                              :: cxB,cyB,cxT,cyT
     integer                           :: itime
-    logical                           :: first,bot,top
+    logical                           :: bot,top
     real,    dimension(mmax,nmax), parameter :: Rblank = 0.0
 
     if (verbose .gt. 0) print *,'Running with Rossby number: ', Ross
@@ -74,26 +74,17 @@ SUBROUTINE sqg_main()
     if (verbose .gt. 1) print*,'lam = ',lam
     if (verbose .gt. 1) print*,'extrema ulinT = ',maxval(ulinT),minval(ulinT)
 
-    ! write basic state to disk
-    if ( .not. ibase ) then
-        call write_diag(bsefile,0,Rblank,Rblank)
-        call dump(thbB,thbT,.TRUE.,lam,1,bsefile)
-    endif
-
-    ! create output file
-    call write_diag(outfile,0,Rblank,Rblank)
-
     ! advection flags
     if     (model .eq. 0) then     ! 2D
-    top = .FALSE.; bot = .TRUE.
+        top = .FALSE.; bot = .TRUE.
     elseif (model .eq. 1) then     ! 2sQG
-    top = .TRUE.; bot = .TRUE.
+        top = .TRUE.; bot = .TRUE.
     elseif (model .eq. 2) then     ! tropo sQG
-    top = .TRUE.; bot = .FALSE.
+        top = .TRUE.; bot = .FALSE.
     elseif (model .eq. 3) then     ! surface sQG
-    top = .FALSE.; bot = .TRUE.
+        top = .FALSE.; bot = .TRUE.
     elseif (model .eq. 4) then     ! tropo HsQG
-    top = .TRUE.; bot = .FALSE.
+        top = .TRUE.; bot = .FALSE.
     endif
 
     if (verbose .gt. 0) print*,'max BOTTOM initial value=',maxval(abs(thxyB)), bot
@@ -104,21 +95,34 @@ SUBROUTINE sqg_main()
     call xy_to_sp(cmplx(thxyT,0.),thspT,2*kmax,2*lmax,kmax,lmax)
 
     ! initialize terrain:
-    hu = 0.; hv = 0.; hx = 0.; hy = 0.
     if (iterr .and. Ross .eq. 0) then 
         if (verbose .gt. 1)   print*,'initializing terrain'
         call terrain(hx,hy,hu,hv)
         call invert(thspB,0.0*thspT,thxB,thxT,thyB,thyT,vB,vT,uB,uT, &
                     thbB,thbT,thbyB,thbyT,ulinB,ulinT,               &
-                    .TRUE.,.TRUE.,.TRUE.,0.0,sB,sBold,lap)
+                    .TRUE.,.TRUE.,0.0,sB,lap)
         hu = uT; hv = vT
         if (verbose .gt. 1) print*,'extrema hx = ',maxval(hx),minval(hx)
         if (verbose .gt. 1) print*,'extrema hy = ',maxval(hy),minval(hy)
         if (verbose .gt. 1) print*,'extrema hu = ',maxval(hu),minval(hu)
         if (verbose .gt. 1) print*,'extrema hv = ',maxval(hv),minval(hv)
+    else
+        hu = 0.; hv = 0.; hx = 0.; hy = 0.
     endif
 
-    first = .TRUE.
+    ! write basic state to disk
+    if ( .not. ibase ) then
+        call write_diag(bsefile,0,Rblank,Rblank)
+        call dump(thbB,thbT,.TRUE.,lam,1,bsefile)
+    endif
+
+    ! create output file
+    call write_diag(outfile,0,Rblank,Rblank)
+
+    ! initialize
+    sB = 0. ! streamFUNCTION for Ekman calculation.
+    thspB1 = 0.0 ; thspB2 = 0.0 ! tendencies from previous 2 time-steps
+    thspT1 = 0.0 ; thspT2 = 0.0 ! tendencies from previous 2 time-steps
 
     ! option to zero k = 1 modes
     !thspB(2,:) = 0.; thspB(2*kmax,:) = 0.
@@ -129,9 +133,6 @@ SUBROUTINE sqg_main()
     !!!!!!!!!!!!!!!!!!!!
     do itime = 1, ntims
 
-        ! save old streamFUNCTION for Ekman calculation.
-        sBold = sB; if (first) sBold = 0.0
-
         ! option to zero l = 0 modes, which are nonlinear solutions
         !thspB(:,1) = 0; thspT(:,1) = 0;
 
@@ -140,11 +141,6 @@ SUBROUTINE sqg_main()
             if (verbose .gt. 1) print*,'RESCALING'
             thspB = thspB/2.0 ; thspT = thspT/2.0 ; cyT = 0.0
         endif
-
-        ! Invert theta for streamFUNCTION; compute gradients for advection:
-        call invert(thspB,thspT,thxB,thxT,thyB,thyT,vB,vT,uB,uT, &
-                    thbB,thbT,thbyB,thbyT,ulinB,ulinT,&
-                    first,bot,top,lam,sB,sBold,lap)
 
         ! option to compute potential enstrophy norm and growth rate:
         if ( inorm ) call norm(thspB,thspT,itime)
@@ -157,6 +153,11 @@ SUBROUTINE sqg_main()
                 call dump(thspB,thspT,.FALSE.,lam,itime,outfile)
             endif
         endif
+
+        ! Invert theta for streamFUNCTION; compute gradients for advection:
+        call invert(thspB,thspT,thxB,thxT,thyB,thyT,vB,vT,uB,uT, &
+                    thbB,thbT,thbyB,thbyT,ulinB,ulinT,&
+                    bot,top,lam,sB,lap)
 
         ! spectral advection:
         if (bot) call advect(uB,   vB,   thxB,thyB,thbyB,hx,    hy,    ulinB,tthB,lam,lap  )
@@ -183,16 +184,10 @@ SUBROUTINE sqg_main()
         endif
 
         ! advance one time step with explicit (hyper-)diffusion:
-        if ( first ) then
-            thspB1 = 0.0 ; thspB2 = 0.0
-            thspT1 = 0.0 ; thspT2 = 0.0
-        endif
-        if (bot) call tadv(thspB,tthspB,thspB1,thspB2,dco,first)
-        if (top) call tadv(thspT,tthspT,thspT1,thspT2,dco,first)
+        if (bot) call tadv(thspB,tthspB,thspB1,thspB2,dco)
+        if (top) call tadv(thspT,tthspT,thspT1,thspT2,dco)
 
         thspB(kmax,:) = 0.; thspB(lmax,:) = 0.
-
-        first = .FALSE.
 
     end do ! itime
     !!!!!!!!!!!!!!!!!!
@@ -200,7 +195,7 @@ SUBROUTINE sqg_main()
     !!!!!!!!!!!!!!!!!!
 
     ! write (final + 1) time to disk for future restart:
-    call write_diag(rstfile,0,thxyB,thxyT)
+    call write_diag(rstfile,0,Rblank,Rblank)
     call dump(thspB,thspT,.FALSE.,lam,1,rstfile)
 
     return
@@ -210,22 +205,21 @@ END SUBROUTINE sqg_main
 !========================================================================
 SUBROUTINE invert(ithspB,ithspT,thxBr,thxTr,thyBr,thyTr,vBr,vTr,uBr,uTr, &
                   thbB,thbT,thbyB,thbyT,ulinB,ulinT, &
-                  first,bot,top,lam,sB,sBold,sblre)
+                  bot,top,lam,sB,sblre)
 ! Invert PV and transform to a larger grid for de-aliasing.
 
     implicit none
 
-    complex, dimension(2*kmax,2*lmax), intent(in)  :: ithspB,ithspT
-    complex, dimension(2*kmax,2*lmax), intent(in)  :: thbB,thbT
-    complex, dimension(2*kmax,2*lmax), intent(in)  :: sBold
-    real,    dimension(mmax,nmax),     intent(in)  :: thbyB,thbyT
-    real,    dimension(mmax,nmax),     intent(in)  :: ulinB,ulinT
-    real,                              intent(in)  :: lam
-    logical,                            intent(in) :: first,bot,top
-    real,    dimension(mmax,nmax),     intent(out) :: thxBr,thxTr,thyBr,thyTr
-    real,    dimension(mmax,nmax),     intent(out) :: uBr,uTr,vBr,vTr
-    real,    dimension(mmax,nmax),     intent(out) :: sblre
-    complex, dimension(2*kmax,2*lmax), intent(out) :: sB
+    complex, dimension(2*kmax,2*lmax), intent(in)    :: ithspB,ithspT
+    complex, dimension(2*kmax,2*lmax), intent(in)    :: thbB,thbT
+    real,    dimension(mmax,nmax),     intent(in)    :: thbyB,thbyT
+    real,    dimension(mmax,nmax),     intent(in)    :: ulinB,ulinT
+    real,                              intent(in)    :: lam
+    logical,                            intent(in)   :: bot,top
+    real,    dimension(mmax,nmax),     intent(out)   :: thxBr,thxTr,thyBr,thyTr
+    real,    dimension(mmax,nmax),     intent(out)   :: uBr,uTr,vBr,vTr
+    real,    dimension(mmax,nmax),     intent(out)   :: sblre
+    complex, dimension(2*kmax,2*lmax), intent(inout) :: sB
 
     complex, dimension(2*kmax,2*lmax) :: temps
     complex, dimension(2*kmax,2*lmax) :: thspB,thspT
@@ -435,17 +429,17 @@ SUBROUTINE invert(ithspB,ithspT,thxBr,thxTr,thyBr,thyTr,vBr,vTr,uBr,uTr, &
 
     ! Ekman layer calculations (need streamFUNCTION and Laplacian.
     if (gamma .gt. 0) then
+        ! compute Laplacian from previous time-step's sB
+        temp = 0.
+        call d_s2b(sB,temp,1,d_oper%dx*d_oper%dx + d_oper%dy*d_oper%dy)
+        call ft_2d(temp,mmax,nmax,1)
+        sblre = real(temp)
         ! reset these since they were changed for next-order calculations
         thspB = ithspB; thspT = ithspT ! local copies of spectral boundary theta
-        sb = 0. ! surface O(1) streamFUNCTION
+        sB = 0. ! surface O(1) streamFUNCTION
         call d_s2s(thspB,sB,   1,-d_oper%iz)  ! bottom contribution
         call d_s2s(thspT,temps,1, d_oper%izo) ! toppom contribution
         sB = sB + temps;
-        ! now compute Laplacian from previous time-step's sB
-        temp = 0.
-        call d_s2b(sBold,temp,1,d_oper%dx*d_oper%dx + d_oper%dy*d_oper%dy)
-        call ft_2d(temp,mmax,nmax,1)
-        sblre = real(temp)
     endif
 
     return
@@ -845,7 +839,7 @@ END SUBROUTINE advect
 !========================================================================
 
 !========================================================================
-SUBROUTINE tadv(dat,tend,told,told2,dco,first)
+SUBROUTINE tadv(dat,tend,told,told2,dco)
 ! Time-advance SUBROUTINE.
 
     implicit none
@@ -853,12 +847,11 @@ SUBROUTINE tadv(dat,tend,told,told2,dco,first)
     complex, dimension(2*kmax,2*lmax), intent(inout) :: dat, told, told2
     complex, dimension(mmax,nmax),     intent(in)    :: tend
     real,                              intent(in)    :: dco
-    logical,                           intent(in)    :: first
     integer :: k,l,kk,ll
     real    :: ak,bl,dts
     complex :: ttsp
 
-    if (first) then
+    if ( all(told == 0.0) .and. all(told2 == 0.0) ) then
         dts = dt*(12.0/23.0)
     else
         dts = dt
@@ -1432,7 +1425,6 @@ SUBROUTINE terrain(hx,hy,hu,hv)
     hx = real(hxs)
     hy = real(hys)
 
-    print*,hx(:,nmax/2)
     if ( verbose .gt. 1 ) print*,'terrain height : ',hx(:,nmax/2)
 
     if (model .eq. 4) then ! HsQG needs topo winds on the tropo
@@ -1452,9 +1444,9 @@ SUBROUTINE terrain(hx,hy,hu,hv)
         if ( verbose .gt. 1 ) print*,'max topo = ',maxval(abs(hspR))
         call xy_to_sp(cmplx(hspR,0.),hspC,2*kmax,2*lmax,kmax,lmax)
         if ( verbose .gt. 1 ) print*,'max topo spectral = ',maxval(abs(hspC))
-        call invert(-hspC,Cblank,Rblank,Rblank,Rblank,Rblank,Rblank, & 
-                    hv,Rblank,hu,Cblank,Cblank,Rblank,Rblank,Rblank, & 
-                    Rblank,.TRUE.,.TRUE.,.TRUE.,lam,Cblank,Cblank,Rblank)
+        call invert(-hspC,Cblank,Rblank,Rblank,Rblank,Rblank,Rblank,hv,Rblank,hu, & 
+                    Cblank,Cblank,Rblank,Rblank,Rblank,Rblank, & 
+                    .TRUE.,.TRUE.,lam,Cblank,Rblank)
         ! hu and hv have the tropo winds due to topography
         if ( verbose .gt. 1 ) print*,'max tropo winds due to topography: ',maxval(abs(hu)),maxval(abs(hv))
 
