@@ -108,9 +108,7 @@ SUBROUTINE sqg_main()
         endif
 
         ! Invert theta for streamFUNCTION; compute gradients for advection:
-        call invert(sqg_static,thspB,thspT,thxB,thxT,thyB,thyT,vB,vT,uB,uT, &
-                    sqg_static%thbB,sqg_static%thbT,sqg_static%thbyB,sqg_static%thbyT,sqg_static%ulinB,sqg_static%ulinT,&
-                    sqg_static%bot,sqg_static%top,sqg_static%lam,sB,lap)
+        call invert(sqg_static,thspB,thspT,thxB,thxT,thyB,thyT,vB,vT,uB,uT,sB,lap)
 
         ! spectral advection:
         if (sqg_static%bot) call advect(uB,vB,thxB,thyB,sqg_static%thbyB,sqg_static%hx,sqg_static%hy,sqg_static%ulinB,tthB,sqg_static%lam,lap)
@@ -161,6 +159,8 @@ SUBROUTINE static_init_model(sqg_static)
 
 type (model_static), intent(inout) :: sqg_static
 
+type (model_static)                :: tmp
+
     ! initialize diffusion: 
     call diffusion(sqg_static%dco)
 
@@ -202,10 +202,11 @@ type (model_static), intent(inout) :: sqg_static
     if (iterr .and. Ross .eq. 0) then 
         if (verbose .gt. 1)   print*,'initializing terrain'
         call terrain(sqg_static)
-!        call terrain(sqg_static%hx,sqg_static%hy,sqg_static%hu,sqg_static%hv)
-!        call invert(thspB,0.0*thspT,thxB,thxT,thyB,thyT,vB,vT,uB,uT, &
-!                    thbB,thbT,thbyB,thbyT,ulinB,ulinT,               &
-!                    .TRUE.,.TRUE.,0.0,sB,lap)
+        tmp = sqg_static
+        tmp%bot   = .TRUE.
+        tmp%top   = .TRUE.
+        tmp%lam   = 0.0
+!        call invert(sqg_static,thspB,0.0*thspT,thxB,thxT,thyB,thyT,vB,vT,uB,uT,sB,lap)
 !        sqg_static%hu = uT; sqg_static%hv = vT
         if (verbose .gt. 1) print*,'extrema hx = ',maxval(sqg_static%hx),minval(sqg_static%hx)
         if (verbose .gt. 1) print*,'extrema hy = ',maxval(sqg_static%hy),minval(sqg_static%hy)
@@ -218,26 +219,18 @@ type (model_static), intent(inout) :: sqg_static
         sqg_static%hy = 0.
     endif
 
-
+    return
 END SUBROUTINE static_init_model
 !========================================================================
 
 !========================================================================
-SUBROUTINE invert(sqg_static,ithspB,ithspT,thxBr,thxTr,thyBr,thyTr,vBr,vTr,uBr,uTr, &
-                  thbB,thbT,thbyB,thbyT,ulinB,ulinT, &
-                  bot,top,lam,sB,sblre)
+SUBROUTINE invert(sqg_static,ithspB,ithspT,thxBr,thxTr,thyBr,thyTr,vBr,vTr,uBr,uTr,sB,sblre)
 ! Invert PV and transform to a larger grid for de-aliasing.
 
     implicit none
 
     type(model_static),                intent(in)    :: sqg_static
-
     complex, dimension(2*kmax,2*lmax), intent(in)    :: ithspB,ithspT
-    complex, dimension(2*kmax,2*lmax), intent(in)    :: thbB,thbT
-    real,    dimension(mmax,nmax),     intent(in)    :: thbyB,thbyT
-    real,    dimension(mmax,nmax),     intent(in)    :: ulinB,ulinT
-    real,                              intent(in)    :: lam
-    logical,                           intent(in)    :: bot,top
     real,    dimension(mmax,nmax),     intent(out)   :: thxBr,thxTr,thyBr,thyTr
     real,    dimension(mmax,nmax),     intent(out)   :: uBr,uTr,vBr,vTr
     real,    dimension(mmax,nmax),     intent(out)   :: sblre
@@ -278,32 +271,32 @@ SUBROUTINE invert(sqg_static,ithspB,ithspT,thxBr,thxTr,thyBr,thyTr,vBr,vTr,uBr,u
     call d_s2b(thspT,thyT,1,sqg_static%dy) ! y derivative: small to big domain.
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!! sQG Bottom !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    if (bot .or. correct) then ! velocity contribution from lower boundary
+    if (sqg_static%bot .or. correct) then ! velocity contribution from lower boundary
         call d_b2b( thxB,vB,1,-sqg_static%iz) 
         call d_b2b(-thyB,uB,1,-sqg_static%iz)
     endif
 !!!!!!!!!!!!!!!!!!!!!!!!!!! sQG Toppom !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    if (top .or. correct) then ! velocity contribution from upper boundary
+    if (sqg_static%top .or. correct) then ! velocity contribution from upper boundary
         call d_b2b( thxT,vT,1,sqg_static%iz) ! z integral: big to big domain.
         call d_b2b(-thyT,uT,1,sqg_static%iz) ! z integral: big to big domain.
     endif
 !!!!!!!!!!!!!!!!!!!!!!!! sQG Cross Boundary !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    if (bot .and. top .or. correct) then ! lower velocity from upper boundary
+    if (sqg_static%bot .and. sqg_static%top .or. correct) then ! lower velocity from upper boundary
         call d_b2b( thxT,temp,1,sqg_static%izo); vB = vB + temp;
         call d_b2b(-thyT,temp,1,sqg_static%izo); uB = uB + temp;
     endif
-    if (bot .and. top .or. correct) then ! upper velocity from lower boundary
+    if (sqg_static%bot .and. sqg_static%top .or. correct) then ! upper velocity from lower boundary
         call d_b2b( thxB,temp,1,-sqg_static%izo); vT = vT + temp;
         call d_b2b(-thyB,temp,1,-sqg_static%izo); uT = uT + temp;
     endif
     ! FFT back to xy grid.
-    if (bot .or. correct) then 
+    if (sqg_static%bot .or. correct) then 
         call ft_2d(thxB,mmax,nmax,1) ! t_x
         call ft_2d(vB,  mmax,nmax,1) ! v0
         call ft_2d(uB,  mmax,nmax,1) ! u0
         call ft_2d(thyB,mmax,nmax,1) ! t_y
     endif
-    if (top .or. correct) then 
+    if (sqg_static%top .or. correct) then 
         call ft_2d(thxT,mmax,nmax,1) ! t_x
         call ft_2d(thyT,mmax,nmax,1) ! t_y
         call ft_2d(vT,  mmax,nmax,1) ! v0
@@ -319,9 +312,9 @@ SUBROUTINE invert(sqg_static,ithspB,ithspT,thxBr,thxTr,thyBr,thyTr,vBr,vTr,uBr,u
 
         ! basic-state terms: add periodic parts here; linear parts are handled last.
         if (hw) then 
-            thspB = thspB + thbB; thspT = thspT + thbT
-            uB = uB + ulinB; uT = uT + ulinT - (lam*H) ! don't double count!
-            thyB = thyB + thbyB; thyT = thyT + thbyT
+            thspB = thspB + sqg_static%thbB; thspT = thspT + sqg_static%thbT
+            uB = uB + sqg_static%ulinB; uT = uT + sqg_static%ulinT - (sqg_static%lam*H) ! don't double count!
+            thyB = thyB + sqg_static%thbyB; thyT = thyT + sqg_static%thbyT
         endif
 
         ! big-grid theta (szsp) and theta_z (szzsp):
@@ -419,13 +412,13 @@ SUBROUTINE invert(sqg_static,ithspB,ithspT,thxBr,thxTr,thyBr,thyTr,vBr,vTr,uBr,u
             call d_s2s(thspB,tempxyB,1,-sqg_static%izo*sqg_static%dx*sqg_static%dy) !phi_xy^B
             call d_s2s(thspT,tempxyT,1, sqg_static%izo*sqg_static%dx*sqg_static%dy) !phi_xy^T
 
-            !u1spB = u1spB - lam*(H*(htempT - tempspT) + (thspT - thspB) )
-            !u1spT = u1spT + lam*(H*(htempB - tempspB) + (thspT - thspB) )
+            !u1spB = u1spB - sqg_static%lam*(H*(htempT - tempspT) + (thspT - thspB) )
+            !u1spT = u1spT + sqg_static%lam*(H*(htempB - tempspB) + (thspT - thspB) )
             ! as per DM email 12/24/02:
-            u1spB = u1spB - lam*(H*(htempT - tempspT) - thspB )
-            u1spT = u1spT + lam*(H*(htempB - tempspB) + thspT )
-            v1spB = v1spB + lam*2*H*tempxyT
-            v1spT = v1spT - lam*2*H*tempxyB
+            u1spB = u1spB - sqg_static%lam*(H*(htempT - tempspT) - thspB )
+            u1spT = u1spT + sqg_static%lam*(H*(htempB - tempspB) + thspT )
+            v1spB = v1spB + sqg_static%lam*2*H*tempxyT
+            v1spT = v1spT - sqg_static%lam*2*H*tempxyB
         endif
 
         ! map from small to large spectral array
@@ -437,8 +430,8 @@ SUBROUTINE invert(sqg_static,ithspB,ithspT,thxBr,thxTr,thyBr,thyTr,vBr,vTr,uBr,u
         call ft_2d(u1T,mmax,nmax,1); call ft_2d(v1T,mmax,nmax,1)
 
         ! remove periodic base state (added above):
-        uB = uB - ulinB; uT = uT - ulinT + (lam*H)
-        thyB = thyB - thbyB; thyT = thyT - thbyT
+        uB = uB - sqg_static%ulinB; uT = uT - sqg_static%ulinT + (sqg_static%lam*H)
+        thyB = thyB - sqg_static%thbyB; thyT = thyT - sqg_static%thbyT
     endif ! correct
 
     ! return u = u_0 + Ro * u_1; v = v_0 + Ro * v_1
@@ -1049,11 +1042,6 @@ SUBROUTINE d_setup(sqg_static)
     ! Id
     Id = 1.0
 
-!    d_oper%dx  = dx ; d_oper%dy  = dy
-!    d_oper%dz  = dz ; d_oper%dzo = dzo
-!    d_oper%iz  = iz ; d_oper%izo = izo
-!    d_oper%Id  = Id
-
     sqg_static%dx  = dx ; sqg_static%dy  = dy
     sqg_static%dz  = dz ; sqg_static%dzo = dzo
     sqg_static%iz  = iz ; sqg_static%izo = izo
@@ -1411,7 +1399,6 @@ END SUBROUTINE write_diag
 !========================================================================
 
 !========================================================================
-!SUBROUTINE terrain(hx,hy,hu,hv)
 SUBROUTINE terrain(sqg_static)
 ! Terrain and barotropic wind on the _advection_ grid:
 ! feb 2005: added tropo winds from z = 0 for Hsqg
@@ -1420,7 +1407,7 @@ SUBROUTINE terrain(sqg_static)
 
     type(model_static), intent(inout) :: sqg_static
 
-    real, dimension(mmax,nmax)        :: hx,hy,hu,hv
+    real,    dimension(mmax,nmax)     :: hx,hy,hu,hv
     complex, dimension(mmax,nmax)     :: hxsp,hysp
     complex, dimension(mmax,nmax)     :: hh
     complex, dimension(mmax,nmax)     :: hxs,hys
@@ -1432,6 +1419,7 @@ SUBROUTINE terrain(sqg_static)
     integer :: i,j,k,l,LL,MM,kk,mmd2,nmd2,mmaxp1,nmaxp1
     real,    dimension(mmax,nmax)     :: Rblank
     complex, dimension(2*kmax,2*lmax) :: Cblank
+    type(model_static)                :: tmp
 
     ! barotropic wind
     hu = 0.; hv = 0.
@@ -1484,9 +1472,18 @@ SUBROUTINE terrain(sqg_static)
         if ( verbose .gt. 1 ) print*,'max topo = ',maxval(abs(hspR))
         call xy_to_sp(cmplx(hspR,0.),hspC,2*kmax,2*lmax,kmax,lmax)
         if ( verbose .gt. 1 ) print*,'max topo spectral = ',maxval(abs(hspC))
-        call invert(sqg_static,-hspC,Cblank,Rblank,Rblank,Rblank,Rblank,Rblank,hv,Rblank,hu, & 
-                    Cblank,Cblank,Rblank,Rblank,Rblank,Rblank, & 
-                    .TRUE.,.TRUE.,lam,Cblank,Rblank)
+        
+        tmp = sqg_static
+        tmp%thbB  = Cblank
+        tmp%thbT  = Cblank
+        tmp%thbyB = Rblank
+        tmp%thbyT = Rblank
+        tmp%ulinB = Rblank
+        tmp%ulinT = Rblank
+        tmp%bot   = .TRUE.
+        tmp%top   = .TRUE.
+        tmp%lam   = lam
+        call invert(sqg_static,-hspC,Cblank,Rblank,Rblank,Rblank,Rblank,Rblank,hv,Rblank,hu,Cblank,Rblank)
         ! hu and hv have the tropo winds due to topography
         if ( verbose .gt. 1 ) print*,'max tropo winds due to topography: ',maxval(abs(hu)),maxval(abs(hv))
 
