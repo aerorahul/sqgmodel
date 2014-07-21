@@ -147,7 +147,7 @@ SUBROUTINE write_diag(n,thB,thT,trB,trT)
 	
 		if(debug) print*,'creating file ... ', trim(adjustl(diagfile))
 
-		call check( nf90_create(trim(adjustl(diagfile)), NF90_CLOBBER .or. NF90_64BIT_OFFSET, ncid), routine_name )
+		call check( nf90_create(trim(adjustl(diagfile)), ior(NF90_CLOBBER,NF90_64BIT_OFFSET), ncid), routine_name )
 	
 		call check( nf90_def_dim(ncid, "nx",           2*kmax, vardim(1)), routine_name )
 		call check( nf90_def_dim(ncid, "ny",           2*lmax, vardim(2)), routine_name )

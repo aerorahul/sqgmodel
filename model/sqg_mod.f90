@@ -1339,7 +1339,7 @@ SUBROUTINE write_diag(output_file,it,thB,thT)
     if ( it .eq. 0 ) then
 
         ! Create a new NetCDF file
-        call nc_check( nf90_create(output_file, NF90_CLOBBER .or. NF90_64BIT_OFFSET, ncid), 'write_diag', 'create ' // trim(output_file) )
+        call nc_check( nf90_create(output_file, ior(NF90_CLOBBER,NF90_64BIT_OFFSET), ncid), 'write_diag', 'create ' // trim(output_file) )
 
         ! Define dimensions
         call nc_check( nf90_def_dim(ncid, "nx",   2*kmax,         vardim(1)), 'write_diag', 'def_dim, nx '   // trim(output_file))

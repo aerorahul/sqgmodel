@@ -31,22 +31,41 @@ endif
 
 #stratopause, dorne, valyria
 ifeq (${host}, stratopause)
+F90 = ifort
+#FCFLAGS = -O0 -g -check all -ftz -vec-report0 -fp-model precise -ftrapuv -traceback
+FCFLAGS = -w -O3 -ftz -align all -fno-alias -fp-model precise -cm -axT -u -convert big_endian -parallel
 NETCDF = /usr
 LIBS = ${shell $(NETCDF)/bin/nc-config --flibs}
-INCS = -I$(NETCDF)/include/netcdf
+INCS = -I${shell $(NETCDF)/bin/nc-config --includedir}
 mFFLAGS =
 else
 ifeq (${host}, dorne)
-NETCDF  = /opt/Baselibs/v3.2.1/i686-apple-darwin12.0.0/ifort/Darwin
+F90 = ifort
+#FCFLAGS = -O0 -g -check all -ftz -vec-report0 -fp-model precise -ftrapuv -traceback
+FCFLAGS = -w -O3 -ftz -align all -fno-alias -fp-model precise -cm -axT -u -convert big_endian -parallel
+NETCDF = /opt/Baselibs/v3.2.1/i686-apple-darwin12.0.0/ifort/Darwin
 LIBS = ${shell $(NETCDF)/bin/nc-config --flibs}
-INCS = -I$(NETCDF)/include/netcdf
+INCS = -I${shell $(NETCDF)/bin/nc-config --includedir}
 mFFLAGS = -shared-intel
 else
 ifeq (${host}, valyria)
-NETCDF  = /opt/Baselibs/v3.2.1/i686-apple-darwin12.0.0/ifort/Darwin
+F90 = ifort
+#FCFLAGS = -O0 -g -check all -ftz -vec-report0 -fp-model precise -ftrapuv -traceback
+FCFLAGS = -w -O3 -ftz -align all -fno-alias -fp-model precise -cm -axT -u -convert big_endian -parallel
+NETCDF = /opt/Baselibs/v3.2.1/i686-apple-darwin12.0.0/ifort/Darwin
 LIBS = ${shell $(NETCDF)/bin/nc-config --flibs}
-INCS = -I$(NETCDF)/include/netcdf
+INCS = -I${shell $(NETCDF)/bin/nc-config --includedir}
 mFFLAGS = -shared-intel
+else
+ifeq (${host}, emc-lw-rmahajan)
+F90 = gfortran
+#FCFLAGS = -g -ffree-line-length-none -fbounds-check -fbacktrace -ffpe-trap=invalid,zero,overflow 
+FCFLAGS = -O2 -ffree-line-length-none
+NETCDF = $(HOME)/EXT/netcdf-fortran-4.2.0
+LIBS = ${shell $(NETCDF)/bin/nf-config --flibs}
+INCS = -I${shell $(NETCDF)/bin/nf-config --includedir}
+mFFLAGS =
+endif
 endif
 endif
 endif
@@ -55,10 +74,7 @@ NCFLAGS = $(LIBS) $(INCS)
 #------------------------------------------------------------
 
 #------------------------------------------------------------
-F90    = ifort
-FFLAGS = -w -O3 -ftz -align all -fno-alias -fp-model precise -cm -axT -u -convert big_endian -parallel $(mFFLAGS)
-# Use these flags for development / testing
-#FFLAGS = -O0 -g -check all -ftz -vec-report0 -fp-model precise -ftrapuv -traceback $(mFFLAGS)
+FFLAGS = $(FCFLAGS) $(mFFLAGS)
 RM     = rm -f
 SRC    = .
 BIN    = .
