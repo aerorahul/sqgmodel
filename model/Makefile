@@ -8,74 +8,15 @@
 
 #------------------------------------------------------------
 # Makefile for sqg program
-# always do "make clean" first.
+# always link appropriate makefile.conf and do "make clean" first
 #------------------------------------------------------------
 
 #------------------------------------------------------------
-machine := ${shell uname -m}
-host := ${shell hostname -s}
-
-# Discover
-ifeq (${machine}, x86_64)
-NETCDF = /usr/local/other/netcdf/4.1.1/serial_Intel-11.1.069
-HDF    = /usr/local/other/hdf5/1.8.4/serial_intel-11.1.069
-ZLIB   = /usr/local/other/zlib/1.2.3-intel-11.1.069
-SZIP   = /usr/local/other/szip/2.1/Intel-11.1.069
-INCS = -I$(NETCDF)/include
-LIBS = -L$(NETCDF)/lib -lnetcdf \
-       -L$(HDF)/lib -lhdf5_hl -lhdf5  \
-       -L$(ZLIB)/lib -lz -lm  \
-       -L$(SZIP)/lib -lsz
-mFFLAGS =
-endif
-
-#stratopause, dorne, valyria
-ifeq (${host}, stratopause)
-F90 = ifort
-#FCFLAGS = -O0 -g -check all -ftz -vec-report0 -fp-model precise -ftrapuv -traceback
-FCFLAGS = -w -O3 -ftz -align all -fno-alias -fp-model precise -cm -axT -u -convert big_endian -parallel
-NETCDF = /usr
-LIBS = ${shell $(NETCDF)/bin/nc-config --flibs}
-INCS = -I${shell $(NETCDF)/bin/nc-config --includedir}
-mFFLAGS =
-else
-ifeq (${host}, dorne)
-F90 = ifort
-#FCFLAGS = -O0 -g -check all -ftz -vec-report0 -fp-model precise -ftrapuv -traceback
-FCFLAGS = -w -O3 -ftz -align all -fno-alias -fp-model precise -cm -axT -u -convert big_endian -parallel
-NETCDF = /opt/Baselibs/v3.2.1/i686-apple-darwin12.0.0/ifort/Darwin
-LIBS = ${shell $(NETCDF)/bin/nc-config --flibs}
-INCS = -I${shell $(NETCDF)/bin/nc-config --includedir}
-mFFLAGS = -shared-intel
-else
-ifeq (${host}, valyria)
-F90 = ifort
-#FCFLAGS = -O0 -g -check all -ftz -vec-report0 -fp-model precise -ftrapuv -traceback
-FCFLAGS = -w -O3 -ftz -align all -fno-alias -fp-model precise -cm -axT -u -convert big_endian -parallel
-NETCDF = /opt/Baselibs/v3.2.1/i686-apple-darwin12.0.0/ifort/Darwin
-LIBS = ${shell $(NETCDF)/bin/nc-config --flibs}
-INCS = -I${shell $(NETCDF)/bin/nc-config --includedir}
-mFFLAGS = -shared-intel
-else
-ifeq (${host}, emc-lw-rmahajan)
-F90 = gfortran
-#FCFLAGS = -g -ffree-line-length-none -fbounds-check -fbacktrace -ffpe-trap=invalid,zero,overflow 
-FCFLAGS = -O2 -ffree-line-length-none
-NETCDF = $(HOME)/EXT/netcdf-fortran-4.2.0
-LIBS = ${shell $(NETCDF)/bin/nf-config --flibs}
-INCS = -I${shell $(NETCDF)/bin/nf-config --includedir}
-mFFLAGS =
-endif
-endif
-endif
-endif
-
-NCFLAGS = $(LIBS) $(INCS)
+# Get F90, FFLAGS, NCFLAGS, RM from makefile.conf
+include makefile.conf
 #------------------------------------------------------------
 
 #------------------------------------------------------------
-FFLAGS = $(FCFLAGS) $(mFFLAGS)
-RM     = rm -f
 SRC    = .
 BIN    = .
 #------------------------------------------------------------

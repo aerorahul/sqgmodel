@@ -1,0 +1,27 @@
+#------------------------------------------------------------
+# <next few lines under version control, D O  N O T  E D I T>
+# $Date$
+# $Author$
+# $Revision$
+# $Id$ 
+#------------------------------------------------------------
+
+#------------------------------------------------------------
+# configuration file for use with intel fortran compiler on OSX
+#------------------------------------------------------------
+
+#------------------------------------------------------------
+F90 = ifort
+FCFLAGS = -w -O3 -ftz -align all -fno-alias -fp-model precise -cm -axT -u -convert big_endian -parallel
+#FCFLAGS = -O0 -g -check all -ftz -vec-report0 -fp-model precise -ftrapuv -traceback
+LIBS = ${shell $(NETCDF)/bin/nc-config --flibs}
+INCS = -I${shell $(NETCDF)/bin/nc-config --includedir}
+mFFLAGS = -shared-intel
+
+NCFLAGS = $(LIBS) $(INCS)
+#------------------------------------------------------------
+
+#------------------------------------------------------------
+FFLAGS = $(FCFLAGS) $(mFFLAGS)
+RM     = rm -f
+#------------------------------------------------------------

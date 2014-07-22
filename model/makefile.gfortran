@@ -1,0 +1,27 @@
+#------------------------------------------------------------
+# <next few lines under version control, D O  N O T  E D I T>
+# $Date$
+# $Author$
+# $Revision$
+# $Id$
+#------------------------------------------------------------
+
+#------------------------------------------------------------
+# configuration file for use with gfortran compiler
+#------------------------------------------------------------
+
+#------------------------------------------------------------
+F90 = gfortran
+FCFLAGS = -O2 -ffree-line-length-none
+#FCFLAGS = -g -ffree-line-length-none -fbounds-check -fbacktrace -ffpe-trap=invalid,zero,overflow 
+LIBS = ${shell $(NETCDF)/bin/nf-config --flibs}
+INCS = -I${shell $(NETCDF)/bin/nf-config --includedir}
+mFFLAGS =
+
+NCFLAGS = $(LIBS) $(INCS)
+#------------------------------------------------------------
+
+#------------------------------------------------------------
+FFLAGS = $(FCFLAGS) $(mFFLAGS)
+RM     = rm -f
+#------------------------------------------------------------
