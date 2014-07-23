@@ -25,20 +25,14 @@ args = parser.parse_args()
 fname = args.filename
 
 nc = Dataset(fname,mode='r')
-theta = nc.variables['theta']
-thB = theta[0,:]
-thT = theta[1,:]
-
-Nx,Ny,Nz = np.shape(theta)
-
-maxval = np.max(np.max(np.abs(thB)))
-trB = np.abs(thB / maxval)
-maxval = np.max(np.max(np.abs(thT)))
-trT = np.abs(thT / maxval)
-
+theta = nc.variables['theta'][:]
+nc.close()
+Nz,Ny,Nx = theta.shape
 tracer = np.zeros((Nz,Ny,Nx))
-tracer[0,:] = trB
-tracer[1,:] = trT
+
+for i in range(Nz):
+    tracer[i,:] = np.abs(theta[i,:] / np.max(np.max(np.abs(theta[i,:]))))
+
 nc = Dataset('tr_init.nc',mode='w',clobber=True)
 Dim = nc.createDimension('nx',size=Nx)
 Dim = nc.createDimension('ny',size=Ny)
