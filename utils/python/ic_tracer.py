@@ -27,16 +27,17 @@ fname = args.filename
 nc = Dataset(fname,mode='r')
 theta = nc.variables['theta'][:]
 nc.close()
-Nz,Ny,Nx = theta.shape
-tracer = np.zeros((Nz,Ny,Nx))
+Nt,Nz,Ny,Nx = theta.shape
+tracer = np.zeros((1,Nz,Ny,Nx))
 
 for i in range(Nz):
-    tracer[i,:] = np.abs(theta[i,:] / np.max(np.max(np.abs(theta[i,:]))))
+    tracer[0,i,:] = np.abs(theta[0,i,:] / np.max(np.max(np.abs(theta[0,i,:]))))
 
 nc = Dataset('tr_init.nc',mode='w',clobber=True)
-Dim = nc.createDimension('nx',size=Nx)
-Dim = nc.createDimension('ny',size=Ny)
-Dim = nc.createDimension('nz',size=2)
+Dim = nc.createDimension('nx',  size=Nx)
+Dim = nc.createDimension('ny',  size=Ny)
+Dim = nc.createDimension('nz',  size=2)
+Dim = nc.createDimension('time',size=1)
 Var = nc.createVariable('tracer','f8',('nz','ny','nx',))
 nc.close()
 

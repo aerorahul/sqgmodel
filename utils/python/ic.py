@@ -385,14 +385,15 @@ pyplot.axis('image')
 f3.canvas.set_window_title(t)
 
 #	dump to disk:
-theta = np.zeros((2,Ny,Nx))
-theta[0,:] = th_B
-theta[1,:] = th_T
+theta = np.zeros((1,2,Ny,Nx))
+theta[0,0,:] = th_B
+theta[0,1,:] = th_T
 nc = Dataset('th_init.nc',mode='w',clobber=True)
-Dim = nc.createDimension('nx',size=Nx)
-Dim = nc.createDimension('ny',size=Ny)
-Dim = nc.createDimension('nz',size=2)
-Var = nc.createVariable('theta','f8',('nz','ny','nx',))
+Dim = nc.createDimension('nx',  size=Nx)
+Dim = nc.createDimension('ny',  size=Ny)
+Dim = nc.createDimension('nz',  size=2)
+Dim = nc.createDimension('time',size=1)
+Var = nc.createVariable('theta','f8',('time','nz','ny','nx',))
 nc.close()
 
 nc = Dataset('th_init.nc',mode='a',clobber=True)
