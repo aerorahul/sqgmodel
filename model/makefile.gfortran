@@ -15,7 +15,7 @@ F90 = gfortran
 FCFLAGS = -O2 -ffree-line-length-none
 #FCFLAGS = -g -ffree-line-length-none -fbounds-check -fbacktrace -ffpe-trap=invalid,zero,overflow 
 LIBS = ${shell $(NETCDF)/bin/nf-config --flibs}
-INCS = -I${shell $(NETCDF)/bin/nf-config --includedir}
+INCS = ${shell $(NETCDF)/bin/nf-config --cflags}
 mFFLAGS =
 
 NCFLAGS = $(LIBS) $(INCS)

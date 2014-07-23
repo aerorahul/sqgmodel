@@ -15,7 +15,7 @@ F90 = ifort
 FCFLAGS = -w -O3 -ftz -align all -fno-alias -fp-model precise -cm -axT -u -convert big_endian -parallel
 #FCFLAGS = -O0 -g -check all -ftz -vec-report0 -fp-model precise -ftrapuv -traceback
 LIBS = ${shell $(NETCDF)/bin/nc-config --flibs}
-INCS = -I${shell $(NETCDF)/bin/nc-config --includedir}
+INCS = ${shell $(NETCDF)/bin/nc-config --cflags}
 mFFLAGS = -shared-intel
 
 NCFLAGS = $(LIBS) $(INCS)
