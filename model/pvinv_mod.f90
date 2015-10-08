@@ -74,9 +74,11 @@ SUBROUTINE pvinv_main()
     ! map into spectral space at the same resolution
     call xy_to_sp(cmplx(itbxy,0.),tbsp,2*kmax,2*lmax,kmax,lmax)
     call xy_to_sp(cmplx(ittxy,0.),ttsp,2*kmax,2*lmax,kmax,lmax)
+    !$omp parallel do schedule(dynamic) private(k)
     do k=1,pmax
         call xy_to_sp(cmplx(ipvxy(:,:,k),0.),pvsp(:,:,k),2*kmax,2*lmax,kmax,lmax)
     enddo
+    !$omp end parallel do
 
     if (verbose .gt. 0) print*,'inverting for leading order geopotential...'
     call invert(tbsp,ttsp,pvsp,phi0b,phi0t,phi0)
@@ -160,6 +162,7 @@ SUBROUTINE invert(tbsp,ttsp,pvsp,phi0b,phi0t,phi0)
     phi0b=0.;phi0t=0.;phi0=0.
 
     bpvsp = pvsp
+    !$omp parallel do schedule(dynamic) private(k,l,ak,bl)
     do k=1,2*kmax; do l=1,2*lmax
 
         !     add boundary theta to a copy of spectral pv:
@@ -180,6 +183,7 @@ SUBROUTINE invert(tbsp,ttsp,pvsp,phi0b,phi0t,phi0)
          endif
 
     enddo; enddo
+    !$omp end parallel do
 
     ! BEGIN leading-order PV check
     ! phi_xx + phi_yy + phi_zz = q
@@ -268,9 +272,11 @@ SUBROUTINE d_s2s(temp_in,temp_out,dflag,dn)
 
     temp_out = 0.
 
+    !$omp parallel do schedule(dynamic) private(k,l)
     do k = 1,2*kmax; do l = 1,2*lmax
         if (dn(k,l) .ne. 0) temp_out(k,l) = (dn(k,l)**dflag)*temp_in(k,l)
     enddo; enddo
+    !$omp end parallel do
 
     return
 END SUBROUTINE d_s2s
@@ -289,6 +295,7 @@ SUBROUTINE d_s2b(temp_in,temp_out,dflag,dn)
 
     temp_out = 0.
 
+    !$omp parallel do schedule(dynamic) private(k,l)
     do k = 1,kmax; do l = 1,lmax
 
         ! waves: 0 <= k <= +/-kmax; 0 <= l <= +/-lmax:
@@ -306,6 +313,7 @@ SUBROUTINE d_s2b(temp_in,temp_out,dflag,dn)
         if ((k .gt. 1) .and. (l .gt. 1)) temp_out(k2+k,l2+l) = (dn(kk,ll)**dflag)*temp_in(kk,ll)
 
     enddo; enddo
+    !$omp end parallel do
 
     return
 END SUBROUTINE d_s2b
@@ -324,7 +332,7 @@ SUBROUTINE matinv(pv,ak,bl,psi,idn)
     real,    dimension(pmax) :: e
 
     real    :: A,B,C,dz
-    integer :: j
+    integer :: k
 
     psi = 0.
 
@@ -340,11 +348,13 @@ SUBROUTINE matinv(pv,ak,bl,psi,idn)
     e(1) = A / (B - (C*real(idn)))
     f(1) = pv(1) / (B-(C*real(idn)))
 
-    do j = 2, pmax 
-        e(j) = A / (B - (C*e(j-1)))
-        f(j) = (pv(j) + (C*f(j-1))) / (B - (C*e(j-1)))
+    !$omp parallel do schedule(dynamic) private(k)
+    do k = 2, pmax 
+        e(k) = A / (B - (C*e(k-1)))
+        f(k) = (pv(k) + (C*f(k-1))) / (B - (C*e(k-1)))
         !print*,'deep check=',j,f(j),pmax
     enddo
+    !$omp end parallel do
 
     !print*,'f = ',f(pmax)
     !second pass
@@ -355,8 +365,8 @@ SUBROUTINE matinv(pv,ak,bl,psi,idn)
         !print*,'deep check=',f(pmax),real(idn),e(pmax)
     endif
 
-    do j = 1, pmax-1                      
-        psi(pmax-j) = (e(pmax-j)*psi(pmax+1-j)) + f(pmax-j)
+    do k = 1, pmax-1                      
+        psi(pmax-k) = (e(pmax-k)*psi(pmax+1-k)) + f(pmax-k)
     enddo
 
     return
@@ -385,6 +395,7 @@ SUBROUTINE xy_to_sp(xy,sp,mx,ny,km,lm)
 
     call ft_2d(copy,mx,ny,-1)
 
+    !$omp parallel do schedule(dynamic) private(k,l,kk,ll)
     !do k=1,kmp1; do l=1,lmp1
     do k=1,km; do l=1,lm
 
@@ -409,6 +420,7 @@ SUBROUTINE xy_to_sp(xy,sp,mx,ny,km,lm)
         endif
 
     enddo; enddo
+    !$omp end parallel do
 
     return
 END SUBROUTINE xy_to_sp
@@ -433,6 +445,7 @@ SUBROUTINE sp_to_xy(sp,xy,km,lm,mx,ny)
 
     kmp1 = km + 1; lmp1 = lm + 1; k2 = mx - km; l2 = ny - lm
 
+    !$omp parallel do schedule(dynamic) private(k,l,kk,ll)
     !do 10 k = 1,kmp1; do 10 l = 1,lmp1
     do k = 1,km ; do l = 1,lm
 
@@ -457,6 +470,7 @@ SUBROUTINE sp_to_xy(sp,xy,km,lm,mx,ny)
         endif
 
      enddo ; enddo
+    !$omp end parallel do
 
     call ft_2d(copy,mx,ny,1)
     xy = real(copy)
@@ -735,14 +749,15 @@ SUBROUTINE invert_old(tbsp,ttsp,pvsp,phi0b,phi0t,phi0)
 
     implicit none
 
-    complex, intent(in), dimension(2*kmax,2*lmax) :: tbsp,ttsp
-    complex, intent(in), dimension(2*kmax,2*lmax,pmax) :: pvsp
-    complex, intent(out), dimension(2*kmax,2*lmax) :: phi0b,phi0t
-    complex, intent(out), dimension(2*kmax,2*lmax,pmax) :: phi0
+    complex, dimension(2*kmax,2*lmax),      intent(in)  :: tbsp,ttsp
+    complex, dimension(2*kmax,2*lmax,pmax), intent(in)  :: pvsp
+    complex, dimension(2*kmax,2*lmax),      intent(out) :: phi0b,phi0t
+    complex, dimension(2*kmax,2*lmax,pmax), intent(out) :: phi0
+
     complex, dimension(2*kmax,2*lmax,pmax) :: bpvsp      
+    complex, dimension(pmax)               :: psi
     real :: ak,bl,kap,sqg,amod,dz
-    integer :: j,k,l,kk,ll
-    complex, dimension(pmax) :: psi
+    integer :: k,l,kk,ll
 
     dz = ZH/real(pmax)
 
@@ -751,12 +766,15 @@ SUBROUTINE invert_old(tbsp,ttsp,pvsp,phi0b,phi0t,phi0)
 
     ! add boundary theta to a copy of spectral pv:
     bpvsp = pvsp
+    !$omp parallel do schedule(dynamic) private(k,l)
     do k=1,2*kmax; do l=1,2*lmax
         bpvsp(k,l,1) = bpvsp(k,l,1) + (tbsp(k,l)/dz)
         bpvsp(k,l,pmax) = bpvsp(k,l,pmax) - (ttsp(k,l)/dz)
     enddo; enddo
+    !$omp end parallel do
 
     ! inversion of (kmax,lmax) waves into (mmax,nmax) arrays:
+    !$omp parallel do schedule(dynamic) private(k,l,ak,bl,kk,ll,psi)
     do k = 1,kmaxp1 ; do l = 1,lmaxp1
 
         ! waves: 0 <= k <= +/-kmax; 0 <= l <= +/-lmax:
@@ -801,6 +819,7 @@ SUBROUTINE invert_old(tbsp,ttsp,pvsp,phi0b,phi0t,phi0)
         endif
 
     enddo ; enddo
+    !$omp end parallel do
 
     return
 END SUBROUTINE invert_old
@@ -827,7 +846,7 @@ SUBROUTINE uvwtp(tb,tt,phi0,phi0b,phi0t,F1,G1,P1,phi1, &
     complex, dimension(2*kmax,2*lmax)      :: ug,vg
     real,    dimension(2*kmax,2*lmax)      :: rtemp,rutemp,rvtemp,ws,wsg
     real    :: dz
-    integer :: k,l,p
+    integer :: k,l
     complex :: gtemp,ogtemp
 
     dz = ZH/real(pmax)
@@ -838,10 +857,12 @@ SUBROUTINE uvwtp(tb,tt,phi0,phi0b,phi0t,F1,G1,P1,phi1, &
     ! 3D leading-order winds
     if (order .eq. 0 .or. order .eq. 2) then 
 
+        !$omp parallel do schedule(dynamic) private(k,uF,vF)
         do k = 1,pmax
             call d_s2s(phi0(:,:,k),uF,1,-dy); u(:,:,k) = uF
             call d_s2s(phi0(:,:,k),vF,1, dx); v(:,:,k) = vF
         enddo
+        !$omp end parallel do
 
         ! leading-order boundary winds
         call d_s2s(phi0b,uF,1,-dy); ub = uF
@@ -866,40 +887,44 @@ SUBROUTINE uvwtp(tb,tt,phi0,phi0b,phi0t,F1,G1,P1,phi1, &
          ! w  =  F1_x + G1_y
 
          ! compute vertical derivatives by finite differences
-        do p=1,pmax
-            if (p .eq. 1) then ! linear interp; zero BC
+        !$omp parallel do schedule(dynamic) private(k)
+        do k=1,pmax
+            if (k .eq. 1) then ! linear interp; zero BC
                 u1(:,:,1) = -(F1(:,:,1) + F1(:,:,2))/(2*dz)
                 v1(:,:,1) = -(G1(:,:,1) + G1(:,:,2))/(2*dz)
                 ub(:,:) = ub(:,:) - Ross*(2*F1(:,:,1)/dz)
                 vb(:,:) = vb(:,:) - Ross*(2*G1(:,:,1)/dz)  
-            elseif (p .eq. pmax) then ! linear interp; zero BC
+            elseif (k .eq. pmax) then ! linear interp; zero BC
                 u1(:,:,pmax) = (F1(:,:,pmax) + F1(:,:,pmax-1))/(2*dz)
                 v1(:,:,pmax) = (G1(:,:,pmax) + G1(:,:,pmax-1))/(2*dz)
                 ut(:,:) = ut(:,:) + Ross*(2*F1(:,:,pmax)/dz)
                 vt(:,:) = vt(:,:) + Ross*(2*G1(:,:,pmax)/dz)
             else
-                u1(:,:,p) = -(F1(:,:,p+1) - F1(:,:,p-1))/(2*dz)
-                v1(:,:,p) = -(G1(:,:,p+1) - G1(:,:,p-1))/(2*dz)
+                u1(:,:,k) = -(F1(:,:,k+1) - F1(:,:,k-1))/(2*dz)
+                v1(:,:,k) = -(G1(:,:,k+1) - G1(:,:,k-1))/(2*dz)
             endif
-        enddo ! p 
+        enddo ! k 
+        !$omp end parallel do
 
         ! u1 = 0; v1 = 0 ! test of phi contrib
         ! compute horizonal derivatives spectrally
-        do p = 1, pmax
-            call d_s2s(P1(:,:,p),temp,1, dx); v1(:,:,p) = v1(:,:,p) + temp
-            call d_s2s(P1(:,:,p),temp,1,-dy); u1(:,:,p) = u1(:,:,p) + temp
-            if (p .eq. 1) then ! recall phi1_z = 0
-                call d_s2s(P1(:,:,p),temp,1, dx); vb = vb + Ross*temp
-                call d_s2s(P1(:,:,p),temp,1,-dy); ub = ub + Ross*temp
+        !$omp parallel do schedule(dynamic) private(k,temp)
+        do k = 1, pmax
+            call d_s2s(P1(:,:,k),temp,1, dx); v1(:,:,k) = v1(:,:,k) + temp
+            call d_s2s(P1(:,:,k),temp,1,-dy); u1(:,:,k) = u1(:,:,k) + temp
+            if (k .eq. 1) then ! recall phi1_z = 0
+                call d_s2s(P1(:,:,k),temp,1, dx); vb = vb + Ross*temp
+                call d_s2s(P1(:,:,k),temp,1,-dy); ub = ub + Ross*temp
             endif
-            if (p .eq. pmax) then ! recall phi1_z = 0
-                call d_s2s(P1(:,:,p),temp,1, dx); vt = vt + Ross*temp
-                call d_s2s(P1(:,:,p),temp,1,-dy); ut = ut + Ross*temp
+            if (k .eq. pmax) then ! recall phi1_z = 0
+                call d_s2s(P1(:,:,k),temp,1, dx); vt = vt + Ross*temp
+                call d_s2s(P1(:,:,k),temp,1,-dy); ut = ut + Ross*temp
             endif
-            call d_s2s(F1(:,:,p),w(:,:,p),1,dx)
-            call d_s2s(G1(:,:,p),temp,    1,dy)
-            w(:,:,p) = Ross*(w(:,:,p) + temp)
+            call d_s2s(F1(:,:,k),w(:,:,k),1,dx)
+            call d_s2s(G1(:,:,k),temp,    1,dy)
+            w(:,:,k) = Ross*(w(:,:,k) + temp)
         enddo
+        !$omp end parallel do
 
     else
 
@@ -933,46 +958,50 @@ SUBROUTINE uvwtp(tb,tt,phi0,phi0b,phi0t,F1,G1,P1,phi1, &
         else
             phi = phi0 + (Ross*P1) ! total phi potential -- different from above!     
         endif
-        do p=1,pmax
+        !$omp parallel do schedule(dynamic) private(k,temp)
+        do k=1,pmax
             !P1_z:
-            if (p .eq. 1) then 
-                thF(:,:,p) = (phi(:,:,p+1) - (phi(:,:,p)-tb*dz))/(2.*dz)
-            elseif (p .eq. pmax) then 
-                thF(:,:,p) = ((phi(:,:,p)+tt*dz) - phi(:,:,p-1))/(2.*dz)
+            if (k .eq. 1) then 
+                thF(:,:,k) = (phi(:,:,k+1) - (phi(:,:,k)-tb*dz))/(2.*dz)
+            elseif (k .eq. pmax) then 
+                thF(:,:,k) = ((phi(:,:,k)+tt*dz) - phi(:,:,k-1))/(2.*dz)
             else
-                thF(:,:,p) = (phi(:,:,p+1) - phi(:,:,p-1))/(2.*dz)
+                thF(:,:,k) = (phi(:,:,k+1) - phi(:,:,k-1))/(2.*dz)
             endif
             if (order .ne. 0) then 
                 !G_x:
-                call d_s2s(G1(:,:,p),temp,1,dx); thF(:,:,p) = thF(:,:,p) + Ross*temp
+                call d_s2s(G1(:,:,k),temp,1,dx); thF(:,:,k) = thF(:,:,k) + Ross*temp
                 !F_y
-                call d_s2s(F1(:,:,p),temp,1,dy); thF(:,:,p) = thF(:,:,p) - Ross*temp
+                call d_s2s(F1(:,:,k),temp,1,dy); thF(:,:,k) = thF(:,:,k) - Ross*temp
             endif
-        enddo ! p 
+        enddo ! k
+        !$omp end parallel do
     endif
 
     ! NEW NEW NEW--theta at half-levels
     if (1 .eq. 0) then 
         thF = 0.
         phi = phi0   
-        do p=1,pmax-1
-            thF(:,:,p) = (phi(:,:,p+1) - phi(:,:,p))/(dz)
-            thF(:,:,p) = thF(:,:,p) + Ross*((P1(:,:,p+1) - P1(:,:,p))/(dz))
+        !$omp parallel do schedule(dynamic) private(k,temp,ftemp)
+        do k=1,pmax-1
+            thF(:,:,k) = (phi(:,:,k+1) - phi(:,:,k))/(dz)
+            thF(:,:,k) = thF(:,:,k) + Ross*((P1(:,:,k+1) - P1(:,:,k))/(dz))
             if (order .ne. 0) then 
                 !G_x:
-                call d_s2s(G1(:,:,p),temp,1,dx); call d_s2s(G1(:,:,p+1),ftemp,1,dx) 
-                thF(:,:,p) = thF(:,:,p) + Ross*(temp + ftemp)/2.
+                call d_s2s(G1(:,:,k),temp,1,dx); call d_s2s(G1(:,:,k+1),ftemp,1,dx) 
+                thF(:,:,k) = thF(:,:,k) + Ross*(temp + ftemp)/2.
                 !F_y
-                call d_s2s(F1(:,:,p),temp,1,dy); call d_s2s(F1(:,:,p+1),ftemp,1,dy); 
-                thF(:,:,p) = thF(:,:,p) - Ross*(temp + ftemp)/2.
+                call d_s2s(F1(:,:,k),temp,1,dy); call d_s2s(F1(:,:,k+1),ftemp,1,dy); 
+                thF(:,:,k) = thF(:,:,k) - Ross*(temp + ftemp)/2.
             endif
-        enddo ! p 
+        enddo ! k 
+        !$omp end parallel do
     endif
 
     ! compute the geostrophic wind from the _total_ geopotential 
-    do p = 1, pmax
-        call d_s2s(phi(:,:,p),vg,1, dx)
-        call d_s2s(phi(:,:,p),ug,1,-dy)
+    do k = 1, pmax
+        call d_s2s(phi(:,:,k),vg,1, dx)
+        call d_s2s(phi(:,:,k),ug,1,-dy)
         ! move geostrophic wind onto physical grid
         rutemp = 0.; rvtemp = 0.
         call sp_to_xy(vg,rvtemp,kmax,lmax,2*kmax,2*lmax)
@@ -981,11 +1010,11 @@ SUBROUTINE uvwtp(tb,tt,phi0,phi0b,phi0t,F1,G1,P1,phi1, &
         wsg = sqrt(((rutemp**2) + (rvtemp**2)))
         ! move full wind onto physical grid
         rutemp = 0.; rvtemp = 0.
-        call sp_to_xy(v(:,:,p),rvtemp,kmax,lmax,2*kmax,2*lmax)
-        call sp_to_xy(u(:,:,p),rutemp,kmax,lmax,2*kmax,2*lmax)
-        !call d_s2s(v(:,:,p),rvtemp,1,Id); call d_s2s(u(:,:,p),rutemp,1,Id)
+        call sp_to_xy(v(:,:,k),rvtemp,kmax,lmax,2*kmax,2*lmax)
+        call sp_to_xy(u(:,:,k),rutemp,kmax,lmax,2*kmax,2*lmax)
+        !call d_s2s(v(:,:,k),rvtemp,1,Id); call d_s2s(u(:,:,k),rutemp,1,Id)
         ws = sqrt(((rutemp**2) + (rvtemp**2)))
-        if (verbose .gt. 1) print*,'max wind speed for full and geostrophic winds (total phi) at level: ', p, maxval(ws),maxval(wsg)
+        if (verbose .gt. 1) print*,'max wind speed for full and geostrophic winds (total phi) at level: ', k, maxval(ws),maxval(wsg)
     enddo
 
     return
@@ -1074,6 +1103,7 @@ SUBROUTINE invert_R(tbsp,ttsp,phi0b,phi0t,phi0,F1,G1,P1,phi1,phi1b,phi1t,pvsp)
     pzzS(1,1,:) = 0.
 
     ! terms with mixed derivatives involving d/dz at half levels on big grid
+    !$omp parallel do schedule(dynamic) private(k)
     do k=1,pmax
 
         pzz=0.;pzx=0.;pzy=0.;pxx=0.;pyy=0.;pxy=0.
@@ -1132,8 +1162,10 @@ SUBROUTINE invert_R(tbsp,ttsp,phi0b,phi0t,phi0,F1,G1,P1,phi1,phi1b,phi1t,pvsp)
         call xy_to_sp(cmplx(Rtemp,0.),phi1s(:,:,k),mmax,nmax,kmax,lmax)
 
     enddo
+    !$omp end parallel do
 
     ! inversion (mod 19 July to correct F,G calls to matinv)
+    !$omp parallel do schedule(dynamic) private(k,l,ak,bl,psi)
     do k=1,2*kmax; do l=1,2*lmax
 
         ! get wavenumbers
@@ -1160,6 +1192,7 @@ SUBROUTINE invert_R(tbsp,ttsp,phi0b,phi0t,phi0,F1,G1,P1,phi1,phi1b,phi1t,pvsp)
             call matinv(P1s(k,l,:),ak,bl,psi,1); P1(k,l,:) = psi(:)
         endif
     enddo; enddo
+    !$omp end parallel do
 
     ! finally, correct phi from Phi
     phi1 = phi1 + P1
@@ -1267,11 +1300,14 @@ SUBROUTINE laplacian(func,fb,ft,lap)
     dz = ZH/real(pmax)
 
     ! first z-loop for f_z at at intermediate levels
+    !$omp parallel do schedule(dynamic) private(k)
     do k = 1,pmax-1
         fz(:,:,k) = (func(:,:,k+1) - func(:,:,k)) / dz
     enddo
+    !$omp end parallel do
 
     ! second z-loop for laplacian at grid levels and f_zz; lap calc
+    !$omp parallel do schedule(dynamic) private(k,fxx,fyy,fzz)
     do k = 1,pmax
 
         call d_s2s(func(:,:,k),fxx,1,dx*dx)
@@ -1291,6 +1327,7 @@ SUBROUTINE laplacian(func,fb,ft,lap)
         lap(:,:,k) = fxx + fyy + fzz
 
     enddo
+    !$omp end parallel do
     ! END leading-order PV check
 
     return
@@ -1316,6 +1353,7 @@ SUBROUTINE vortdiv(u,v,vort,div)
     ! derivative operators
     call d_setup(dx,dy,Id)
 
+    !$omp parallel do schedule(dynamic) private(k,ux,vx,uy,vy,vs,ds)
     do k = 1,pmax
         call d_s2s(v(:,:,k),vx,1,dx); call d_s2s(v(:,:,k),vy,1,dy) 
         call d_s2s(u(:,:,k),ux,1,dx); call d_s2s(u(:,:,k),uy,1,dy) 
@@ -1326,6 +1364,7 @@ SUBROUTINE vortdiv(u,v,vort,div)
         call sp_to_xy(vs,vort(:,:,k),kmax,lmax,2*kmax,2*lmax)
         call sp_to_xy(ds,div(:,:,k),kmax,lmax,2*kmax,2*lmax)
     enddo
+    !$omp end parallel do
 
     return
 END SUBROUTINE vortdiv
@@ -1438,6 +1477,7 @@ SUBROUTINE epv_pseudoheight(u,v,t,ub,vb,tb,ut,vt,tt,epv_out)
     ! vertical derivatives by centered finite differences, except near boundaries.
     ! the near-boundary points use centered differencing and averaging to get the 
     ! mid-grid points (e.g. grid level 1.5).
+    !$omp parallel do schedule(dynamic) private(k)
     do k=1,pmax
         if (k .eq. 1) then 
             vz(:,:,k) = (v(:,:,k+1) + v(:,:,k) - 2.*vb(:,:)) / (2.*dz)
@@ -1454,6 +1494,7 @@ SUBROUTINE epv_pseudoheight(u,v,t,ub,vb,tb,ut,vt,tt,epv_out)
         endif
         if (verbose .gt. 1) print*,'max sp vz = ',maxval(abs(vz(:,:,k)))
     enddo
+    !$omp end parallel do
 
     ! spectral horizontal derivatives and epv at each level
     epv_out = 0.
@@ -1511,16 +1552,19 @@ SUBROUTINE epv_pseudoheight_new(u,v,t,tb,tt,phi0,phi0b,phi0t,epv_out)
     tb(1,1) = 0.; tt(1,1) = 0.; t(1,1,:) = 0.
 
     ! leading order winds
+    !$omp parallel do schedule(dynamic) private(k)
     do k = 1,pmax
         call d_s2s(phi0(:,:,k),u0(:,:,k),1,-dy)
         call d_s2s(phi0(:,:,k),v0(:,:,k),1, dx)
     enddo
+    !$omp end parallel do
 
     ! leading-order boundary winds
     call d_s2s(phi0b,u0b,1,-dy); call d_s2s(phi0t,u0t,1,-dy)
     call d_s2s(phi0b,v0b,1, dx); call d_s2s(phi0t,v0t,1, dx)
 
     ! vertical derivatives
+    !$omp parallel do schedule(dynamic) private(k)
     do k=1,pmax
         if (k .eq. 1) then 
             vz(:,:,k) = (v0(:,:,k+1) + v0(:,:,k) - 2.*v0b(:,:)) / (2.*dz)
@@ -1536,6 +1580,7 @@ SUBROUTINE epv_pseudoheight_new(u,v,t,tb,tt,phi0,phi0b,phi0t,epv_out)
             tz(:,:,k) = (t(:,:,k) - t(:,:,k-1)) / dz
         endif
     enddo
+    !$omp end parallel do
 
     ! spectral horizontal derivatives and epv at each level
     epv_out = 0.

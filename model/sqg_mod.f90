@@ -484,6 +484,7 @@ SUBROUTINE xy_to_sp(xy,sp,mx,ny,km,lm)
     call ft_2d(copy,mx,ny,-1)
 
     !do k=1,kmp1; do l=1,lmp1
+    !$omp parallel do schedule(dynamic) private(k,l,kk,ll)
     do k=1,km; do l=1,lm
 
         kk = km + k; ll = lm + l
@@ -507,6 +508,7 @@ SUBROUTINE xy_to_sp(xy,sp,mx,ny,km,lm)
         endif
 
     enddo; enddo
+    !$omp end parallel do
 
     return
 END SUBROUTINE xy_to_sp
@@ -532,6 +534,7 @@ SUBROUTINE sp_to_xy(sp,xy,km,lm,mx,ny)
     kmp1 = km + 1; lmp1 = lm + 1; k2 = mx - km; l2 = ny - lm
 
     !do 10 k = 1,kmp1; do 10 l = 1,lmp1
+    !$omp parallel do schedule(dynamic) private(k,l,kk,ll)
     do k = 1,km ; do l = 1,lm
 
         ! waves: 0 <= k <= +/-kmax; 0 <= l <= +/-lmax:
@@ -555,6 +558,7 @@ SUBROUTINE sp_to_xy(sp,xy,km,lm,mx,ny)
         endif
 
      enddo ; enddo
+     !$omp end parallel do
 
     call ft_2d(copy,mx,ny,1)
     xy = real(copy)
@@ -690,18 +694,21 @@ SUBROUTINE init_jet(sqg_static)
 
     ! spectral variables
     dyy = YL/real(2*lmax)
+    !$omp parallel do schedule(dynamic) private(y,yp)
     do j=1, 2*lmax
         y = real(j-1)*dyy; yp = y - (0.5*(YL - hwp))
         thbxyB(:,j) = HW_theta(y,0.) + lam*yp
         thbxyT(:,j) = HW_theta(y,H)  + lam*yp
         !print*,'periodic theta grid point:',y,yp,thbxyT(1,j)
     enddo
+    !$omp end parallel do
     ! map into spectral space at the same resolution:
     call xy_to_sp(cmplx(thbxyB,0.),thbB,2*kmax,2*lmax,kmax,lmax)
     call xy_to_sp(cmplx(thbxyT,0.),thbT,2*kmax,2*lmax,kmax,lmax)
 
     ! grid point variables
     dyy = YL/real(nmax)
+    !$omp parallel do schedule(dynamic) private(y,yp)
     do j=1, nmax
         y = real(j-1)*dyy; yp = y - (0.5*(YL - hwp))
         thbyB(:,j) = HW_thetay(y,0.) + lam
@@ -711,6 +718,7 @@ SUBROUTINE init_jet(sqg_static)
         !ulinB(:,j) = HW_ubar(y,0.)
         !ulinT(:,j) = HW_ubar(y,H)
     enddo
+    !$omp end parallel do
 
     ! new U: solve numerically given theta
     uB = 0.; uT = 0.
@@ -795,11 +803,13 @@ SUBROUTINE dump(thspB,thspT,ilam,lam,it,outfile)
 
     ! add in linear shear
     if (ilam) then 
+        !$omp parallel do schedule(dynamic) private(j)
         do j=1, 2*lmax
             ! fixed 08/10/2005 GJH & RBM
             thxyB(:,j) = thxyB(:,j) - lam*real(j-1)*YL/real(2*lmax)
             thxyT(:,j) = thxyT(:,j) - lam*real(j-1)*YL/real(2*lmax)
         enddo
+        !$omp end parallel do
     endif
 
     if (verbose .gt. 0) print*,'Writing to disk...'
@@ -820,7 +830,7 @@ SUBROUTINE advect(u,v,f_x,f_y,fb_y,h_x,h_y,ub,tf,lam,lap)
     real, dimension(:,:),       intent(out) :: tf
 
     real    :: x,y,dx,dy
-    real    :: terr
+    real    :: terr,tftmp
     real    :: famp,rw
     real    :: rphasex,rphasey
     integer :: i,j
@@ -834,30 +844,32 @@ SUBROUTINE advect(u,v,f_x,f_y,fb_y,h_x,h_y,ub,tf,lam,lap)
     rphasex = 2.0*pi*(ran1(iseed)-0.5)
     rphasey = 2.0*pi*(ran1(iseed)-0.5)
 
+    !$omp parallel do schedule(dynamic) private(i,j,x,y,tftmp,terr)
     do i=1,mmax; do j=1,nmax
 
         x = real(i-1)*dx; y = real(j-1)*dy
 
         if (linear) then 
-            tf(i,j) = -((v(i,j) * (fb_y(i,j) - lam)) + &
+            tftmp = -((v(i,j) * (fb_y(i,j) - lam)) + &
                         (ub(i,j) * f_x(i,j)))
         else
-            tf(i,j) = -((v(i,j) * (f_y(i,j) + fb_y(i,j) - lam)) + &
+            tftmp = -((v(i,j) * (f_y(i,j) + fb_y(i,j) - lam)) + &
                        ((u(i,j) + ub(i,j)) * f_x(i,j)))
         endif
 
-        tf(i,j) = tf(i,j) - (ekman(x,y)*lap(i,j)) ! Ekman layer
+        tftmp = tftmp - (ekman(x,y)*lap(i,j)) ! Ekman layer
 
         ! terrain:
         if (iterr) then
             terr = -( (v(i,j) * h_y(i,j)) + ((u(i,j) + ub(i,j)) * h_x(i,j)) )
-            tf(i,j) = tf(i,j) + terr 
+            tftmp = tftmp + terr 
         endif
 
         ! random wave-one forcing; random walk in phase (30 August 2006)
-        tf(i,j) = tf(i,j) - famp*sin((rw*x*2*pi/XL)-rphasex)*sin((rw*y*2*pi/YL)-rphasey)
+        tf(i,j) = tftmp - famp*sin((rw*x*2*pi/XL)-rphasex)*sin((rw*y*2*pi/YL)-rphasey)
 
     enddo; enddo
+    !$omp end parallel do
 
     return
 END SUBROUTINE advect
@@ -882,6 +894,7 @@ SUBROUTINE tadv(dat,tend,told,told2,dco)
         dts = dt
     endif
 
+    !$omp parallel do schedule(dynamic) private(k,l,ak,bl,ttsp,kk,ll)
     do k=1,kmax; do l=1,lmax
 
         ! 0 <= k <= +/-kmax; 0 <= l <= +/-lmax:
@@ -920,6 +933,7 @@ SUBROUTINE tadv(dat,tend,told,told2,dco)
         endif
 
     enddo; enddo
+    !$omp end parallel do
 
     return
 END SUBROUTINE tadv
@@ -997,19 +1011,24 @@ SUBROUTINE d_setup(sqg_static)
 
     ! dx
     dx(1,:) = 0.; dx(kmax+1,:) = 0.
+    !$omp parallel do schedule(dynamic) private(k)
     do k=2,kmax
         dx(k,:) = facx*real(k-1)*cmplx(0.,1.)
         dx(2*kmax-k+2,:) = -1.*dx(k,:)
     enddo
+    !$omp end parallel do
 
     ! dy
     dy(:,1) = 0.; dy(:,lmax+1) = 0.
+    !$omp parallel do schedule(dynamic) private(l)
     do l=2,lmax
         dy(:,l) = facy*real(l-1)*cmplx(0.,1.)
         dy(:,2*lmax-l+2) = -1.*dy(:,l)
     enddo
+    !$omp end parallel do
 
     ! dz,dzo
+    !$omp parallel do schedule(dynamic) private(k,l,m)
     do k=1,2*kmax; do l=1,2*lmax
         if (k .eq. 1 .and. l .eq. 1) then 
             dz(k,l) = 0.; dzo(k,l) = 0.; iz(k,l) = 0.; izo(k,l) = 0.
@@ -1038,6 +1057,7 @@ SUBROUTINE d_setup(sqg_static)
             endif
         endif
     enddo; enddo
+    !$omp end parallel do
 
     ! Id
     Id = 1.0
@@ -1064,6 +1084,7 @@ SUBROUTINE d_s2b(temp_in,temp_out,dflag,dn)
 
     integer :: k,l,kk,ll
 
+    !$omp parallel do schedule(dynamic) private(k,l,kk,ll)
     do k = 1,kmax; do l = 1,lmax
 
         ! waves: 0 <= k <= +/-kmax; 0 <= l <= +/-lmax:
@@ -1081,6 +1102,7 @@ SUBROUTINE d_s2b(temp_in,temp_out,dflag,dn)
         if ((k .gt. 1) .and. (l .gt. 1)) temp_out(k2+k,l2+l) = (dn(kk,ll)**dflag)*temp_in(kk,ll)
 
     enddo; enddo
+    !$omp end parallel do
 
     return
 END SUBROUTINE d_s2b
@@ -1101,9 +1123,11 @@ SUBROUTINE d_s2s(temp_in,temp_out,dflag,dn)
 
     temp_out = 0.0
 
+    !$omp parallel do schedule(dynamic) private(k,l)
     do k = 1,2*kmax; do l = 1,2*lmax
         if (dn(k,l) .ne. 0) temp_out(k,l) = (dn(k,l)**dflag)*temp_in(k,l)
     enddo; enddo
+    !$omp end parallel do
 
     return
 END SUBROUTINE d_s2s
@@ -1125,6 +1149,7 @@ SUBROUTINE d_b2b(temp_in,temp_out,dflag,dn)
 
     temp_out = 0.0
 
+    !$omp parallel do schedule(dynamic) private(k,l,kk,ll)
     do k = 1,kmax; do l = 1,lmax
 
         ! waves: 0 <= k <= +/-kmax; 0 <= l <= +/-lmax:
@@ -1148,6 +1173,7 @@ SUBROUTINE d_b2b(temp_in,temp_out,dflag,dn)
         endif
 
     enddo; enddo
+    !$omp end parallel do
 
     return
 END SUBROUTINE d_b2b
@@ -1167,6 +1193,7 @@ SUBROUTINE d_b2s(temp_in,temp_out,dflag,dn)
 
     integer :: k,l,kk,ll
 
+    !$omp parallel do schedule(dynamic) private(k,l,kk,ll)
     do k = 1,kmax; do l = 1,lmax
 
         ! waves: 0 <= k <= +/-kmax; 0 <= l <= +/-lmax:
@@ -1184,6 +1211,7 @@ SUBROUTINE d_b2s(temp_in,temp_out,dflag,dn)
         if ((k .ge. 1) .and. (l .ge. 1)) temp_out(kk,ll) = (dn(kk,ll)**dflag)*temp_in(k2+k,l2+l)
 
     enddo; enddo
+    !$omp end parallel do
 
     return
 END SUBROUTINE d_b2s
@@ -1430,6 +1458,7 @@ SUBROUTINE terrain(sqg_static)
     if ( verbose .gt. 1) print*,'terrain center : ',xcen,ycen
 
     ! gaussian topography:
+    !$omp parallel do schedule(dynamic) private(i,j,x,y,amdx,amdy,rr)
     do i=1,mmax; do j=1,nmax
         x = (i-1)*ddx; y = (j-1)*ddy
         amdx=min(abs(x-xcen),abs(XL+x-xcen),abs(XL-x+xcen))
@@ -1437,6 +1466,7 @@ SUBROUTINE terrain(sqg_static)
         rr = (((amdx/asx)**2) + ((amdy/asy)**2))**0.5
         hh(i,j) = hamp*exp(-1.0*((rr/asig)**2))
     enddo; enddo
+    !$omp end parallel do
 
     if ( verbose .gt. 1 ) print*,'terrain height : ',real(hh(:,nmax/2))
 
@@ -1461,6 +1491,7 @@ SUBROUTINE terrain(sqg_static)
 
         !first make spectral topo height on small grid
         ddx = XL/real((2*kmax)); ddy = YL/real((2*lmax))
+        !$omp parallel do schedule(dynamic) private(i,j,x,y,amdx,amdy,rr)
         do i=1,2*kmax; do j=1,2*lmax
             x = (i-1)*ddx; y = (j-1)*ddy
             amdx=min(abs(x-xcen),abs(XL+x-xcen),abs(XL-x+xcen))
@@ -1468,6 +1499,7 @@ SUBROUTINE terrain(sqg_static)
             rr = (((amdx/asx)**2) + ((amdy/asy)**2))**0.5
             hspR(i,j) = hamp*exp(-1.0*((rr/asig)**2))
         enddo; enddo
+        !$omp end parallel do
 
         if ( verbose .gt. 1 ) print*,'max topo = ',maxval(abs(hspR))
         call xy_to_sp(cmplx(hspR,0.),hspC,2*kmax,2*lmax,kmax,lmax)
