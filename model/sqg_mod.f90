@@ -14,7 +14,55 @@
 MODULE sqg_mod
 
     USE netcdf
-    USE spectral_mod
+
+    implicit none
+
+    ! set default to PRIVATE
+!    PRIVATE
+
+    ! set subroutines to PUBLIC
+!    PUBLIC
+
+    ! constants
+    real, parameter :: pi = 4.0*atan(1.0)    ! pi = 3.14159265358979323846264338327950288419
+
+    ! namelist
+    integer :: model,ntims,iplot,kmax,lmax,pmax,order,verbose,n
+    real    :: dt,hamp,asx,asy,asig,hwp,amu,shear,trl,Ross,gamma,tau,XL,YL,H,ZH
+    logical :: linear,trop,grow,inorm,ibase,iterr,hw,tanhgrid
+
+    ! constants that depend on namelist values
+    integer :: kmid,lmid,mmax,nmax,k2,l2,kmaxp1,lmaxp1
+    real :: facx,facy,ryl
+    real :: taufac
+
+    ! static model info, such as derivative operators, basic state, terrain,
+    ! etc.
+    type model_static
+        ! diffusion
+        real :: dco
+        ! derivative operators
+        complex, dimension(:,:), allocatable :: dx,dy,dz,dzo,iz,izo,Id
+        ! basic state
+        real                                 :: lam
+        real,    dimension(:,:), allocatable :: thbyB,thbyT
+        real,    dimension(:,:), allocatable :: ulinB,ulinT
+        complex, dimension(:,:), allocatable :: thbB,thbT
+        ! terrain
+        real,    dimension(:,:), allocatable :: hx,hy,hu,hv
+        ! advection flags
+        logical :: bot,top
+    end type model_static
+
+    namelist/spectral/model,dt,ntims,iplot,&
+    linear,trop,grow,inorm,ibase,&
+    iterr,hamp,asx,asy,asig,&
+    kmax,lmax,&
+    hw,hwp,amu,shear,trl,&
+    Ross,gamma,&
+    n,taufac,&
+    XL,YL,H,ZH,pmax,&
+    order,tanhgrid,verbose
 
 CONTAINS
 
@@ -26,18 +74,18 @@ SUBROUTINE sqg_main()
     ! basic state, diffusion, terrain, etc ...
     type(model_static) :: sqg_static
     ! spectral values
-    complex, dimension(2*kmax,2*lmax) :: thspB,thspB1,thspB2
-    complex, dimension(2*kmax,2*lmax) :: thspT,thspT1,thspT2
-    complex, dimension(2*kmax,2*lmax) :: sB
+    complex, dimension(:,:), allocatable :: thspB,thspB1,thspB2
+    complex, dimension(:,:), allocatable :: thspT,thspT1,thspT2
+    complex, dimension(:,:), allocatable :: sB
     ! spectral work arrays
-    real,    dimension(2*kmax,2*lmax) :: thxyB,thxyT
+    real,    dimension(:,:), allocatable :: thxyB,thxyT
     ! grid point values
-    real,    dimension(mmax,nmax)     :: thxB,thyB,uB,vB
-    real,    dimension(mmax,nmax)     :: thxT,thyT,uT,vT
+    real,    dimension(:,:), allocatable :: thxB,thyB,uB,vB
+    real,    dimension(:,:), allocatable :: thxT,thyT,uT,vT
     ! tendencies
-    real,    dimension(mmax,nmax)     :: lap
-    real,    dimension(mmax,nmax)     :: tthB,tthT
-    complex, dimension(mmax,nmax)     :: tthspB,tthspT
+    real,    dimension(:,:), allocatable :: lap
+    real,    dimension(:,:), allocatable :: tthB,tthT
+    complex, dimension(:,:), allocatable :: tthspB,tthspT
     ! input and output
     character(len=64), parameter      :: bsefile = 'sqgBasic.nc'
     character(len=64), parameter      :: inpfile = 'sqgInput.nc'
@@ -46,12 +94,24 @@ SUBROUTINE sqg_main()
     ! misc
     real                              :: cxB,cyB,cxT,cyT
     integer                           :: itime
-    real,    dimension(mmax,nmax), parameter :: Rblank = 0.0
+    real, dimension(:,:), allocatable :: Rblank
 
     if (verbose .gt. 0) print *,'Running with Rossby number: ', Ross
 
     ! initialize static model class data (all that needs to be done once)
     call static_init_model(sqg_static)
+
+    allocate(thspB(2*kmax,2*lmax),thspB1(2*kmax,2*lmax),thspB2(2*kmax,2*lmax))
+    allocate(thspT(2*kmax,2*lmax),thspT1(2*kmax,2*lmax),thspT2(2*kmax,2*lmax))
+    allocate(sB(2*kmax,2*lmax))
+    allocate(thxyB(2*kmax,2*lmax),thxyT(2*kmax,2*lmax))
+    allocate(thxB(mmax,nmax),thyB(mmax,nmax),uB(mmax,nmax),vB(mmax,nmax))
+    allocate(thxT(mmax,nmax),thyT(mmax,nmax),uT(mmax,nmax),vT(mmax,nmax))
+    allocate(lap(mmax,nmax))
+    allocate(tthB(mmax,nmax),tthT(mmax,nmax))
+    allocate(tthspB(mmax,nmax),tthspT(mmax,nmax))
+    allocate(Rblank(mmax,nmax))
+    Rblank = 0.0
 
     ! initialize theta fields:
     call init(inpfile,thxyB,thxyT)
@@ -149,17 +209,121 @@ SUBROUTINE sqg_main()
     call write_diag(rstfile,0,Rblank,Rblank)
     call dump(thspB,thspT,.FALSE.,sqg_static%lam,1,rstfile)
 
-    return
+    deallocate(thspB,thspB1,thspB2)
+    deallocate(thspT,thspT1,thspT2)
+    deallocate(sB)
+    deallocate(thxyB,thxyT)
+    deallocate(thxB,thyB,uB,vB)
+    deallocate(thxT,thyT,uT,vT)
+    deallocate(lap)
+    deallocate(tthB,tthT)
+    deallocate(tthspB,tthspT)
+    deallocate(Rblank)
+
+    stop
+
 END SUBROUTINE sqg_main
 !========================================================================
 
 !========================================================================
 SUBROUTINE static_init_model(sqg_static)
-! Initialize the static components of the model
+! Read namelist and initialize the static components of the model
 
-type (model_static), intent(inout) :: sqg_static
+    implicit none
 
-type (model_static)                :: tmp
+    type (model_static), intent(inout) :: sqg_static
+  
+    real    :: taufac
+    integer :: ierr
+
+    ! Initialize namelist defaults
+    model = 1             ! 0:2D; 1:2sQG; 2:sQG-trop; 3:sQG-sfc; 4:HsQG
+    dt    = 0.01          ! model time step
+
+    ntims = 1001          ! number of model time steps
+    iplot = 100           ! plots every iplot time steps
+    !imean = int(10.e3/dt) ! compute area mean every imean
+
+    linear = .FALSE.      ! flag for linear advection (.TRUE./.FALSE.)
+    trop   = .FALSE.      ! flag for tropopause geometry (.TRUE./.FALSE.)
+    grow   = .FALSE.      ! grow a normal mode (.TRUE./.FALSE.)
+    inorm  = .FALSE.      ! flag for computing norm (.TRUE./.FALSE.)
+    ibase  = .TRUE.       ! flag to add base state to output file (.TRUE./.FALSE.)
+
+    iterr = .FALSE.       ! flag for terrain
+    hamp  = 0.6           ! height of terrain (0.6)
+    asx   = 0.6           ! gaussian terrian major axis (1.0)
+    asy   = 0.6           ! gaussian terrian minor axis (1.0)
+    asig  = 1.0           ! eccentricity of gaussian terrain (1.0)
+
+    kmax = 128/2          ! number of x waves
+    lmax = 64/2           ! number of y waves
+
+    hw    = .TRUE.        ! Hoskins-West jet on/off (.TRUE./.FALSE.)
+    hwp   = 5.539118      ! Hoskins-West jet width parameter
+    amu   = 1.0           ! Hoskins-West jet concentration parameter (0->1)
+    shear = 1.0           ! shear parameter (1 for HW jet)
+    trl   = 15.0          ! jet relaxation parameter [e-folding time] (20.0, 40.0, 1000.0)
+
+    Ross  = 0.0           ! Rossby number (0.0, 0.1)
+    gamma = 0.0           ! Ekman parameter (0.0, 0.075, 0.075*1.5)
+
+    n      = 8            ! diffusion parameter
+    taufac = 20.0         ! diffusion time scale factor; tau = taufac * dt
+
+    XL = 20.0             ! x domain length (2*pi, 20.0, 40.0)
+    YL = 2*hwp            ! y domain length (2*pi, 2*5.539118)
+    H  = 1.0              ! z domain length (0.01, 0.1, 1.0, 10.0)
+
+    ZH       = H          ! z domain length ( needed for pinv )
+    pmax     = 11         ! number of vertical levels
+    order    = 2          ! 0:leading order only; 1-first order only; 2-full version
+    tanhgrid = .FALSE.    ! tanh grid in vertical (.TRUE./.FALSE.)
+
+    verbose = 2           ! 0:no mesgs; 1:imp only; 2:all
+
+    ! open, read namelist from file, and write to standard out
+    open(unit=10,file='input.nml',iostat=ierr)
+    if ( ierr .ne. 0 ) then
+        print*,'Error opening namelist file input.nml, ierr =', ierr
+        stop
+    endif
+    read(10,spectral,iostat=ierr)
+    if ( ierr .ne. 0 ) then
+        print*,'Error reading namelist from input.nml, ierr =', ierr
+        stop
+    endif
+    close(10)
+    write(6,spectral)
+
+    tau = taufac*dt ! diffusion time scale
+
+    kmid=kmax/2
+    lmid=lmax/2
+    mmax=3.125*kmax
+    nmax=3.125*lmax
+    k2=mmax-kmax
+    l2=nmax-lmax
+    kmaxp1=kmax+1
+    lmaxp1=lmax+1
+
+    facx=2.0*pi/XL
+    facy=2.0*pi/YL
+    ryl=2.0*pi/hwp
+
+    ! allocate variables in sqg_static
+    allocate(sqg_static%dx(2*kmax,2*lmax),sqg_static%dy( 2*kmax,2*lmax))
+    allocate(sqg_static%dz(2*kmax,2*lmax),sqg_static%dzo(2*kmax,2*lmax))
+    allocate(sqg_static%iz(2*kmax,2*lmax),sqg_static%izo(2*kmax,2*lmax))
+    allocate(sqg_static%Id(2*kmax,2*lmax))
+
+    allocate(sqg_static%thbB(2*kmax,2*lmax),sqg_static%thbT(2*kmax,2*lmax))
+
+    allocate(sqg_static%thbyB(mmax,nmax),sqg_static%thbyT(mmax,nmax))
+    allocate(sqg_static%ulinB(mmax,nmax),sqg_static%ulinT(mmax,nmax))
+
+    allocate(sqg_static%hx(mmax,nmax),sqg_static%hy(mmax,nmax))
+    allocate(sqg_static%hu(mmax,nmax),sqg_static%hv(mmax,nmax))
 
     ! initialize diffusion: 
     call diffusion(sqg_static%dco)
@@ -202,10 +366,6 @@ type (model_static)                :: tmp
     if (iterr .and. Ross .eq. 0) then 
         if (verbose .gt. 1)   print*,'initializing terrain'
         call terrain(sqg_static)
-        tmp = sqg_static
-        tmp%bot   = .TRUE.
-        tmp%top   = .TRUE.
-        tmp%lam   = 0.0
 !        call invert(sqg_static,thspB,0.0*thspT,thxB,thxT,thyB,thyT,vB,vT,uB,uT,sB,lap)
 !        sqg_static%hu = uT; sqg_static%hv = vT
         if (verbose .gt. 1) print*,'extrema hx = ',maxval(sqg_static%hx),minval(sqg_static%hx)
