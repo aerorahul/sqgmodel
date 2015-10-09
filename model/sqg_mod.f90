@@ -157,9 +157,9 @@ END SUBROUTINE sqg_main
 SUBROUTINE static_init_model(sqg_static)
 ! Initialize the static components of the model
 
-type (model_static), intent(inout) :: sqg_static
+    implicit none
 
-type (model_static)                :: tmp
+    type (model_static), intent(inout) :: sqg_static
 
     ! initialize diffusion: 
     call diffusion(sqg_static%dco)
@@ -202,10 +202,6 @@ type (model_static)                :: tmp
     if (iterr .and. Ross .eq. 0) then 
         if (verbose .gt. 1)   print*,'initializing terrain'
         call terrain(sqg_static)
-        tmp = sqg_static
-        tmp%bot   = .TRUE.
-        tmp%top   = .TRUE.
-        tmp%lam   = 0.0
 !        call invert(sqg_static,thspB,0.0*thspT,thxB,thxT,thyB,thyT,vB,vT,uB,uT,sB,lap)
 !        sqg_static%hu = uT; sqg_static%hv = vT
         if (verbose .gt. 1) print*,'extrema hx = ',maxval(sqg_static%hx),minval(sqg_static%hx)
