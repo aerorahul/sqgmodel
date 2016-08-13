@@ -1,6 +1,6 @@
 # sqgmodel
 
-Spectral surface quasigeostophy model from Hakim 2000
+Spectral surface quasigeostrophy model from Hakim 2000
 
 ## References:
 
